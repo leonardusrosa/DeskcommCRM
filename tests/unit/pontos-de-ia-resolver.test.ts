@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * A PRECEDÊNCIA — o teste que guarda a ORDEM, não os caminhos.
  *
