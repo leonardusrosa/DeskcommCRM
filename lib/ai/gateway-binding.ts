@@ -92,6 +92,7 @@ interface LinhaBinding {
   provider: string;
   credential_id: string | null;
   model_id: string;
+  reasoning_effort?: string | null;
   base_url: string | null;
 }
 
@@ -105,7 +106,7 @@ async function lerBinding(
     // obrigatório (CLAUDE.md, anti-pattern 10).
     const { data } = await admin
       .from("ai_purpose_bindings")
-      .select("provider, credential_id, model_id, base_url")
+      .select("provider, credential_id, model_id, reasoning_effort, base_url")
       .eq("organization_id", organizationId)
       .eq("purpose", purpose)
       .eq("is_enabled", true)

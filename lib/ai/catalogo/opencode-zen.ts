@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
 import type { LinhaDeCatalogo } from "./openrouter";
 import { planejarSincronizacao } from "./sincronizar";
+import { obterCapacidadesDeRaciocinio } from "@/lib/ai/raciocinio/catalogo";
 
 export const FONTE_OPENCODE_ZEN = "opencode_zen";
 
@@ -66,6 +67,8 @@ export function traduzirModeloZen(m: ModeloDoZen): LinhaDeCatalogo | null {
   else if (isGemini) contextWindow = 1000000;
   else if (isGpt) contextWindow = 128000;
 
+  const capRaciocinio = obterCapacidadesDeRaciocinio(FONTE_OPENCODE_ZEN, id);
+
   return {
     provider: FONTE_OPENCODE_ZEN,
     model_id: id,
@@ -76,6 +79,9 @@ export function traduzirModeloZen(m: ModeloDoZen): LinhaDeCatalogo | null {
     output_price_per_million_cents: isFree ? 0 : null,
     supports_tools: supportsTools,
     supports_vision: supportsVision,
+    supports_reasoning: capRaciocinio.supports_reasoning,
+    reasoning_efforts_supported: capRaciocinio.reasoning_efforts_supported,
+    reasoning_effort_default: capRaciocinio.reasoning_effort_default,
     source: FONTE_OPENCODE_ZEN,
   };
 }

@@ -37,6 +37,7 @@ import {
 } from './orcamento';
 import { costCents } from './pricing';
 import { createDefaultRegistry, type ProviderRegistry } from './providers';
+import { montarOpcoesDeRaciocinio } from '@/lib/ai/raciocinio/adapter';
 import { buildStablePrefix } from './stable-prefix';
 
 // Call sites FORA da camada importam os tipos daqui — nunca de 'ai' direto
@@ -390,15 +391,13 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
     cacheTtl: cfg.cacheTtl ?? '1h',
   });
 
+  const effort = decisao.reasoningEffort ?? config.reasoningEffort;
+  const opcoesRaciocinio = montarOpcoesDeRaciocinio(config.provider, model, effort);
+
   const startedAt = Date.now();
   let result: Awaited<ReturnType<typeof generateText>>;
   try {
-    // `system` aceita SystemModelMessage (com providerOptions de cache) — igual
-    // em v6 e v7 (smoke prova que o cacheControl continua virando cache_control).
     result = await generateText({
-      // `decisao.baseUrl` só é preenchido quando o painel apontou um endpoint
-      // (gateway OpenAI-compatível, ou modelo local). Providers canônicos
-      // ignoram o terceiro argumento e vão ao endpoint intrínseco.
       model: factory(config.apiKey, model, decisao.baseUrl ?? undefined),
       system: prefix.system,
       messages: input.messages,
@@ -408,6 +407,7 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
       topP,
       topK,
       maxOutputTokens,
+      ...(opcoesRaciocinio.providerOptions ? { providerOptions: opcoesRaciocinio.providerOptions as never } : {}),
     });
   } catch (err) {
     // ─── A LINHA QUE FALTAVA ────────────────────────────────────────────────
@@ -439,6 +439,8 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
       purpose,
       provider: config.provider,
       model,
+      requested_reasoning_effort: opcoesRaciocinio.requestedEffort,
+      effective_reasoning_effort: opcoesRaciocinio.effectiveEffort,
       origem_da_escolha: decisao.origem,
       ...normalizarErro(err),
     });

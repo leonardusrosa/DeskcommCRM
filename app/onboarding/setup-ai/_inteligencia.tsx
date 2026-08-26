@@ -1,17 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { CheckCircle2, AlertCircle, RefreshCw, Cpu } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { ProvedorSuportado } from "@/lib/ai/pontos/provedores";
+import { ROTULOS_DE_RACIOCINIO, type NivelDeRaciocinio } from "@/lib/ai/raciocinio/tipos";
 import { TrocarCerebroDialog, type ModeloOption } from "./_trocar-cerebro-dialog";
 
 export interface EstadoDaChave {
   origem: "org" | "instalacao" | "nenhuma";
   provedor: string;
   modelo: string;
+  raciocinio?: string | null;
+  suportaRaciocinio?: boolean;
   rotulo: string;
   final: string | null;
 }
@@ -42,6 +45,19 @@ export function InteligenciaDele({
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const temChave = chave.origem !== "nenhuma";
+
+  const modeloAtualObj = useMemo(() => {
+    return modelos.find((m) => m.provider === chave.provedor && m.model_id === chave.modelo);
+  }, [modelos, chave.provedor, chave.modelo]);
+
+  const suportaRaciocinio = Boolean(modeloAtualObj?.supports_reasoning ?? chave.suportaRaciocinio);
+
+  const rotuloRaciocinio = useMemo(() => {
+    if (!suportaRaciocinio) return null;
+    if (!chave.raciocinio || chave.raciocinio === "auto") return "Automático";
+    const r = ROTULOS_DE_RACIOCINIO[chave.raciocinio as NivelDeRaciocinio];
+    return r ? r.rotulo.split(" (")[0] : chave.raciocinio;
+  }, [suportaRaciocinio, chave.raciocinio]);
 
   const conferirConexao = async () => {
     if (!temChave) return;
@@ -91,6 +107,14 @@ export function InteligenciaDele({
               <span>
                 modelo: <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">{chave.modelo || "padrão"}</code>
               </span>
+              {suportaRaciocinio && (
+                <>
+                  <span>•</span>
+                  <span>
+                    raciocínio: <strong className="font-medium text-foreground">{rotuloRaciocinio}</strong>
+                  </span>
+                </>
+              )}
               <span>•</span>
               <Badge variant={chave.origem === "org" ? "default" : "secondary"} className="text-[10px] font-normal">
                 {chave.origem === "org" ? "Usando chave desta empresa" : "Usando chave da instalação"}
@@ -141,6 +165,7 @@ export function InteligenciaDele({
         onOpenChange={setDialogOpen}
         currentProvider={chave.provedor}
         currentModel={chave.modelo}
+        currentReasoningEffort={chave.raciocinio}
         currentOrigem={chave.origem}
         provedores={provedores}
         modelos={modelos}
@@ -151,6 +176,7 @@ export function InteligenciaDele({
             origem: resultado.origem,
             provedor: resultado.provedor,
             modelo: resultado.modelo,
+            raciocinio: resultado.raciocinio,
             rotulo: resultado.rotulo,
             final: resultado.final,
           });

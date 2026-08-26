@@ -23,7 +23,7 @@ export default async function SetupAiPage() {
     lerRetratoDaInstalacao({ supabase, orgId: activeOrg.orgId }),
     supabase
       .from("ai_models")
-      .select("provider, model_id, display_name, supports_tools, supports_vision, input_price_per_million_cents")
+      .select("provider, model_id, display_name, supports_tools, supports_vision, supports_reasoning, reasoning_efforts_supported, reasoning_effort_default, input_price_per_million_cents")
       .is("deprecated_at", null)
       .order("display_name", { ascending: true }),
     supabase
@@ -61,6 +61,8 @@ export default async function SetupAiPage() {
           origem: retrato.inteligencia.origemDaChave,
           provedor: retrato.inteligencia.provedor,
           modelo: retrato.inteligencia.modeloCurado || "padrão",
+          raciocinio: retrato.inteligencia.raciocinio,
+          suportaRaciocinio: retrato.inteligencia.suportaRaciocinio,
           rotulo: retrato.inteligencia.rotulo,
           final: retrato.inteligencia.chaveDaOrg?.final ?? null,
         }}

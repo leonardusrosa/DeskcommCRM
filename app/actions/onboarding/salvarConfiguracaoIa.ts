@@ -1,18 +1,19 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { guardarCredencial } from "@/lib/ai/credenciais/guardar";
 import { IDS_DE_PROVEDOR, PROVEDOR_POR_ID } from "@/lib/ai/pontos/provedores";
 import type { Provider } from "@/lib/ai/provider-validators";
 import { lerAmbiente } from "@/lib/instalacao/ambiente";
+import { validarEsforcoDeRaciocinio } from "@/lib/ai/raciocinio/catalogo";
 import { requireOnboardingCtx, OnboardingError } from "./_shared";
 
 export interface SalvarConfigIaInput {
   provider: string;
   model_id: string;
+  reasoning_effort?: string | null;
   api_key?: string;
   base_url?: string;
 }
@@ -22,6 +23,7 @@ export type ResultadoSalvarConfigIa =
       ok: true;
       provedor: string;
       modelo: string;
+      raciocinio: string | null;
       origem: "org" | "instalacao";
       rotulo: string;
       final: string | null;
@@ -61,6 +63,17 @@ export async function salvarConfiguracaoIa(
     return { ok: false, erro: "Escolha o modelo de IA que vai atender." };
   }
 
+  // Validação de esforço de raciocínio
+  const validacaoRaciocinio = validarEsforcoDeRaciocinio(
+    provider,
+    modelId,
+    input.reasoning_effort,
+  );
+  if (!validacaoRaciocinio.ok) {
+    return { ok: false, erro: validacaoRaciocinio.motivo };
+  }
+  const effortEfetivo = validacaoRaciocinio.effort;
+
   const admin = createAdminClient();
   const apiKey = (input.api_key ?? "").trim();
   let finalKey: string | null = null;
@@ -81,7 +94,7 @@ export async function salvarConfiguracaoIa(
       provider: provider as Provider,
       label: `Chave ${PROVEDOR_POR_ID.get(provider)?.rotulo ?? provider} (${new Date().toLocaleDateString("pt-BR")})`,
       apiKey,
-          });
+    });
 
     if (!r.ok) {
       return {
@@ -133,6 +146,7 @@ export async function salvarConfiguracaoIa(
 
   const currentSettings = (org.settings as Record<string, unknown>) || {};
   const currentLlm = (currentSettings.llm as Record<string, unknown>) || {};
+  const currentParams = (currentLlm.params as Record<string, unknown>) || {};
 
   const updatedSettings = {
     ...currentSettings,
@@ -140,6 +154,11 @@ export async function salvarConfiguracaoIa(
       ...currentLlm,
       provider,
       default_model: modelId,
+      reasoning_effort: effortEfetivo,
+      params: {
+        ...currentParams,
+        reasoning_effort: effortEfetivo,
+      },
       base_url: input.base_url?.trim() || currentLlm.base_url,
     },
   };
@@ -159,6 +178,7 @@ export async function salvarConfiguracaoIa(
     ok: true,
     provedor: provider,
     modelo: modelId,
+    raciocinio: effortEfetivo,
     origem,
     rotulo: PROVEDOR_POR_ID.get(provider)?.rotulo ?? provider,
     final: finalKey,

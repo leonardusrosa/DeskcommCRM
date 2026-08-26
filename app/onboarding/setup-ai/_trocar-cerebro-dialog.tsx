@@ -1,24 +1,25 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { Loader2, Check, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { Check, Loader2, Sparkles } from "lucide-react";
 
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import type { ProvedorSuportado } from "@/lib/ai/pontos/provedores";
 import { salvarConfiguracaoIa } from "@/app/actions/onboarding/salvarConfiguracaoIa";
 import { testarConexaoIa } from "@/app/actions/onboarding/testarConexaoIa";
 import { TrocarCerebroCredenciais } from "./_trocar-cerebro-credenciais";
+import { TrocarCerebroRaciocinio } from "./_trocar-cerebro-raciocinio";
 
 export interface ModeloOption {
   provider: string;
@@ -26,6 +27,9 @@ export interface ModeloOption {
   display_name: string;
   supports_tools: boolean;
   supports_vision: boolean;
+  supports_reasoning?: boolean;
+  reasoning_efforts_supported?: string[];
+  reasoning_effort_default?: string | null;
   input_price_per_million_cents: number | null;
 }
 
@@ -34,6 +38,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   currentProvider: string;
   currentModel: string;
+  currentReasoningEffort?: string | null;
   currentOrigem: "org" | "instalacao" | "nenhuma";
   provedores: readonly ProvedorSuportado[];
   modelos: ModeloOption[];
@@ -42,6 +47,7 @@ interface Props {
   onSuccess: (res: {
     provedor: string;
     modelo: string;
+    raciocinio: string | null;
     origem: "org" | "instalacao";
     rotulo: string;
     final: string | null;
@@ -53,7 +59,7 @@ export function TrocarCerebroDialog({
   onOpenChange,
   currentProvider,
   currentModel,
-  currentOrigem,
+  currentReasoningEffort = null,
   provedores,
   modelos,
   chavesDeInstalacao,
@@ -62,6 +68,7 @@ export function TrocarCerebroDialog({
 }: Props) {
   const [selectedProvider, setSelectedProvider] = useState(currentProvider);
   const [selectedModel, setSelectedModel] = useState(currentModel);
+  const [reasoningEffort, setReasoningEffort] = useState<string | null>(currentReasoningEffort);
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [customKeyMode, setCustomKeyMode] = useState(false);
@@ -73,12 +80,13 @@ export function TrocarCerebroDialog({
     if (open) {
       setSelectedProvider(currentProvider);
       setSelectedModel(currentModel);
+      setReasoningEffort(currentReasoningEffort ?? null);
       setApiKey("");
       setBaseUrl("");
       setCustomKeyMode(false);
       setTesteSucesso(null);
     }
-  }, [open, currentProvider, currentModel]);
+  }, [open, currentProvider, currentModel, currentReasoningEffort]);
 
   const provedorInfo = useMemo(() => {
     return provedores.find((p) => p.id === selectedProvider) ?? provedores[0];
@@ -88,17 +96,30 @@ export function TrocarCerebroDialog({
     return modelos.filter((m) => m.provider === selectedProvider);
   }, [modelos, selectedProvider]);
 
+  const modeloSelecionadoObj = useMemo(() => {
+    return modelosDoProvedor.find((m) => m.model_id === selectedModel);
+  }, [modelosDoProvedor, selectedModel]);
+
   useEffect(() => {
     if (!modelosDoProvedor.some((m) => m.model_id === selectedModel)) {
-      if (modelosDoProvedor.length > 0) {
-        if (modelosDoProvedor[0]) setSelectedModel(modelosDoProvedor[0].model_id);
-      }
+      if (modelosDoProvedor[0]) setSelectedModel(modelosDoProvedor[0].model_id);
     }
   }, [selectedProvider, modelosDoProvedor, selectedModel]);
 
-  const temChaveInstalacao = chavesDeInstalacao.includes(selectedProvider);
-  const temChaveOrg = chavesDaOrg.includes(selectedProvider);
-  const temChaveDisponivel = temChaveInstalacao || temChaveOrg;
+  useEffect(() => {
+    if (modeloSelecionadoObj) {
+      if (!modeloSelecionadoObj.supports_reasoning) {
+        setReasoningEffort(null);
+      } else if (
+        reasoningEffort &&
+        !modeloSelecionadoObj.reasoning_efforts_supported?.includes(reasoningEffort)
+      ) {
+        setReasoningEffort(null);
+      }
+    }
+  }, [modeloSelecionadoObj, reasoningEffort]);
+
+  const temChaveDisponivel = chavesDeInstalacao.includes(selectedProvider) || chavesDaOrg.includes(selectedProvider);
 
   const handleTestar = async () => {
     setTestando(true);
@@ -107,19 +128,20 @@ export function TrocarCerebroDialog({
       const res = await testarConexaoIa({
         provider: selectedProvider,
         model_id: selectedModel,
+        reasoning_effort: reasoningEffort,
         api_key: apiKey.trim() || undefined,
         base_url: baseUrl.trim() || undefined,
       });
       if (res.ok) {
         setTesteSucesso(true);
-        toast.success("Conexão testada com sucesso! O modelo respondeu normalmente.");
+        toast.success("Conexão testada com sucesso!");
       } else {
         setTesteSucesso(false);
         toast.error(res.erro);
       }
     } catch {
       setTesteSucesso(false);
-      toast.error("Erro inesperado ao testar conexão.");
+      toast.error("Erro ao testar conexão.");
     } finally {
       setTestando(false);
     }
@@ -136,6 +158,7 @@ export function TrocarCerebroDialog({
       const res = await salvarConfiguracaoIa({
         provider: selectedProvider,
         model_id: selectedModel,
+        reasoning_effort: reasoningEffort,
         api_key: apiKey.trim() || undefined,
         base_url: baseUrl.trim() || undefined,
       });
@@ -170,7 +193,7 @@ export function TrocarCerebroDialog({
 
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <Label htmlFor="modal_provider_select">Provedor de Inteligência Artificial</Label>
+            <Label htmlFor="modal_provider_select">Provedor de IA</Label>
             <select
               id="modal_provider_select"
               value={selectedProvider}
@@ -181,16 +204,10 @@ export function TrocarCerebroDialog({
               className="h-9 w-full rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               {provedores.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.rotulo}
-                </option>
+                <option key={p.id} value={p.id}>{p.rotulo}</option>
               ))}
             </select>
-            {provedorInfo && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                {provedorInfo.quandoUsar}
-              </p>
-            )}
+            {provedorInfo && <p className="mt-1 text-xs text-muted-foreground">{provedorInfo.quandoUsar}</p>}
           </div>
 
           <div className="space-y-1.5">
@@ -221,10 +238,18 @@ export function TrocarCerebroDialog({
             )}
           </div>
 
+          <TrocarCerebroRaciocinio
+            supportsReasoning={Boolean(modeloSelecionadoObj?.supports_reasoning)}
+            supportedEfforts={modeloSelecionadoObj?.reasoning_efforts_supported ?? []}
+            value={reasoningEffort}
+            onChange={setReasoningEffort}
+            disabled={salvando || testando}
+          />
+
           <TrocarCerebroCredenciais
             provedorInfo={provedorInfo}
-            temChaveInstalacao={temChaveInstalacao}
-            temChaveOrg={temChaveOrg}
+            temChaveInstalacao={chavesDeInstalacao.includes(selectedProvider)}
+            temChaveOrg={chavesDaOrg.includes(selectedProvider)}
             temChaveDisponivel={temChaveDisponivel}
             customKeyMode={customKeyMode}
             setCustomKeyMode={setCustomKeyMode}
@@ -245,22 +270,12 @@ export function TrocarCerebroDialog({
             onClick={handleTestar}
             className="gap-1.5"
           >
-            {testando ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : testeSucesso === true ? (
-              <Check className="h-4 w-4 text-emerald-600" />
-            ) : null}
+            {testando ? <Loader2 className="h-4 w-4 animate-spin" /> : testeSucesso === true ? <Check className="h-4 w-4 text-emerald-600" /> : null}
             Testar conexão
           </Button>
 
           <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={salvando}
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="ghost" size="sm" disabled={salvando} onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
             <Button

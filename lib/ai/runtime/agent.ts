@@ -1,3 +1,4 @@
+import { montarOpcoesDeRaciocinio } from "@/lib/ai/raciocinio/adapter";
 /**
  * @deprecated Fase 0 da convergência (spec 2026-07-23): fora do caminho quente.
  * O runtime canônico é lib/agent-engine (workers/agent-worker). Remoção física
@@ -509,12 +510,16 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       { role: "user" as const, content: inboundBody },
     ];
 
+    const effort = (version as { reasoning_effort?: string }).reasoning_effort;
+    const opcoesRaciocinio = montarOpcoesDeRaciocinio(version.provider, version.model, effort);
+
     const result = await generateText({
       model,
       system: version.system_prompt,
       messages,
       tools,
       stopWhen: [stepCountIs(version.max_steps), budgetGuard],
+      ...(opcoesRaciocinio.providerOptions ? { providerOptions: opcoesRaciocinio.providerOptions as never } : {}),
     });
 
     // 12) Aggregate metrics.

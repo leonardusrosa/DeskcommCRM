@@ -51,6 +51,7 @@ export function montarRequisicaoDeProva(
   apiKey: string,
   modelo: string,
   baseUrl?: string,
+  reasoningEffort?: string | null,
 ): Requisicao | null {
   const msg = [{ role: "user", content: "oi" }];
   switch (provider) {
@@ -144,9 +145,9 @@ export async function provarSaldo(
   provider: string,
   apiKey: string,
   modelo: string,
-  opcoes?: { baseUrl?: string; fetchImpl?: typeof fetch },
+  opcoes?: { baseUrl?: string; fetchImpl?: typeof fetch; reasoningEffort?: string | null },
 ): Promise<ResultadoDaProva> {
-  const req = montarRequisicaoDeProva(provider, apiKey, modelo, opcoes?.baseUrl);
+  const req = montarRequisicaoDeProva(provider, apiKey, modelo, opcoes?.baseUrl, opcoes?.reasoningEffort);
   if (!req) {
     return {
       ok: false,

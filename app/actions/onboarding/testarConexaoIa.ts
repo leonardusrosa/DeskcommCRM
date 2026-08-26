@@ -5,11 +5,13 @@ import { validateProviderKey, type Provider } from "@/lib/ai/provider-validators
 import { provarSaldo } from "@/lib/instalacao/prova-de-credito";
 import { lerAmbiente } from "@/lib/instalacao/ambiente";
 import { byteaToBuffer, decryptKey } from "@/lib/crypto/aes_gcm";
+import { validarEsforcoDeRaciocinio } from "@/lib/ai/raciocinio/catalogo";
 import { requireOnboardingCtx } from "./_shared";
 
 export interface TestarConexaoInput {
   provider: string;
   model_id: string;
+  reasoning_effort?: string | null;
   api_key?: string;
   base_url?: string;
 }
@@ -28,8 +30,18 @@ export async function testarConexaoIa(
     return { ok: false, erro: "Sua sessão expirou. Entre de novo." };
   }
 
-  const { provider, model_id, api_key, base_url } = input;
+  const { provider, model_id, reasoning_effort, api_key, base_url } = input;
   let chaveParaTeste = (api_key ?? "").trim();
+
+  // Validação de esforço de raciocínio
+  const validacaoRaciocinio = validarEsforcoDeRaciocinio(
+    provider,
+    model_id,
+    reasoning_effort,
+  );
+  if (!validacaoRaciocinio.ok) {
+    return { ok: false, erro: validacaoRaciocinio.motivo };
+  }
 
   // Se não foi informada uma chave no formulário, buscar a credencial existente
   if (!chaveParaTeste) {
@@ -78,7 +90,10 @@ export async function testarConexaoIa(
   }
 
   // Prova de saldo / geração
-  const prova = await provarSaldo(provider, chaveParaTeste, model_id, { baseUrl: base_url });
+  const prova = await provarSaldo(provider, chaveParaTeste, model_id, {
+    baseUrl: base_url,
+    reasoningEffort: validacaoRaciocinio.effort,
+  });
   if (!prova.ok) {
     return {
       ok: false,

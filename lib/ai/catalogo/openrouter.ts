@@ -56,6 +56,9 @@ export interface LinhaDeCatalogo {
   output_price_per_million_cents: number | null;
   supports_tools: boolean;
   supports_vision: boolean;
+  supports_reasoning?: boolean;
+  reasoning_efforts_supported?: string[];
+  reasoning_effort_default?: string | null;
   source: string;
 }
 

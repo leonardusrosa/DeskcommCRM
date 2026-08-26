@@ -52,6 +52,7 @@ export interface LinhaDeBinding {
   provider: string;
   credential_id: string | null;
   model_id: string;
+  reasoning_effort?: string | null;
   base_url: string | null;
   is_enabled: boolean;
 }
@@ -61,12 +62,14 @@ export interface AgentePublicado {
   provider: string;
   credentialId: string | null;
   model: string | undefined;
+  reasoningEffort?: string | null;
 }
 
 /** O padrão da organização (`organizations.settings.llm`). */
 export interface PadraoDaOrganizacao {
   provider: string;
   defaultModel: string | null;
+  reasoningEffort?: string | null;
 }
 
 export interface EntradaDaDecisao {
@@ -81,6 +84,7 @@ export interface EntradaDaDecisao {
 export interface DecisaoDeBinding {
   provider: string;
   modelId: string | null;
+  reasoningEffort?: string | null;
   credentialId: string | null;
   baseUrl: string | null;
   origem: OrigemDaEscolha;
@@ -130,6 +134,7 @@ export function decidirBinding(entrada: EntradaDaDecisao): DecisaoDeBinding {
     return {
       provider: agente.provider,
       modelId: agente.model ?? entrada.padraoDaOrganizacao.defaultModel,
+      reasoningEffort: agente.reasoningEffort ?? entrada.padraoDaOrganizacao.reasoningEffort ?? null,
       credentialId: agente.credentialId,
       baseUrl: null,
       origem: "agente_publicado",
@@ -148,6 +153,7 @@ export function decidirBinding(entrada: EntradaDaDecisao): DecisaoDeBinding {
     return {
       provider: entrada.binding.provider,
       modelId: entrada.binding.model_id,
+      reasoningEffort: entrada.binding.reasoning_effort ?? null,
       credentialId: entrada.binding.credential_id,
       baseUrl: entrada.binding.base_url,
       origem: "binding",
@@ -162,6 +168,7 @@ export function decidirBinding(entrada: EntradaDaDecisao): DecisaoDeBinding {
     return {
       provider: entrada.padraoDaOrganizacao.provider,
       modelId: entrada.modeloDeAmbiente,
+      reasoningEffort: entrada.padraoDaOrganizacao.reasoningEffort ?? null,
       credentialId: null,
       baseUrl: null,
       origem: "variavel_de_ambiente",
@@ -173,6 +180,7 @@ export function decidirBinding(entrada: EntradaDaDecisao): DecisaoDeBinding {
   return {
     provider: entrada.padraoDaOrganizacao.provider,
     modelId: entrada.padraoDaOrganizacao.defaultModel,
+    reasoningEffort: entrada.padraoDaOrganizacao.reasoningEffort ?? null,
     credentialId: null,
     baseUrl: null,
     origem: "padrao_da_organizacao",

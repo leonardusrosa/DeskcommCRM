@@ -1,3 +1,4 @@
+import { obterCapacidadesDeRaciocinio } from "@/lib/ai/raciocinio/catalogo";
 /**
  * O RETRATO da instalação, montado num lugar só.
  *
@@ -28,6 +29,8 @@ export interface RetratoDaInstalacao {
     /** `id` para quem precisa DECIFRÁ-LA (a prova de saldo). O resto é só rótulo. */
     chaveDaOrg: { id: string; label: string; final: string } | null;
     modeloCurado: string | null;
+    raciocinio: string | null;
+    suportaRaciocinio: boolean;
     prontaParaPublicar: boolean;
   };
   whatsapp: { transporteApontado: boolean; canais: { total: number; conectados: number } | null };
@@ -107,7 +110,7 @@ export async function lerRetratoDaInstalacao(
   const emVerificacao =
     !credencial && (credenciais ?? []).some((c) => c.validated_at === null);
 
-  const llmSettings = (orgRow?.settings as { llm?: { default_model?: string } } | null)?.llm;
+  const llmSettings = (orgRow?.settings as { llm?: { default_model?: string; reasoning_effort?: string; params?: { reasoning_effort?: string } } } | null)?.llm;
   const modeloEscolhido = llmSettings?.default_model;
 
   const { data: modeloDefault } = await supabase
@@ -148,6 +151,10 @@ export async function lerRetratoDaInstalacao(
       ? "instalacao"
       : "nenhuma";
 
+  const capRaciocinio = modeloCurado
+    ? obterCapacidadesDeRaciocinio(provider, modeloCurado)
+    : { supports_reasoning: false, reasoning_efforts_supported: [], reasoning_effort_default: null };
+
 
 
   return {
@@ -168,6 +175,8 @@ export async function lerRetratoDaInstalacao(
           }
         : null,
       modeloCurado,
+      raciocinio: capRaciocinio.supports_reasoning ? (llmSettings?.reasoning_effort ?? llmSettings?.params?.reasoning_effort ?? null) : null,
+      suportaRaciocinio: capRaciocinio.supports_reasoning,
       // Chave sem modelo no catálogo não publica agente — é o estado de uma
       // instalação nova em OpenRouter, cujo catálogo só chega no cron diário.
       prontaParaPublicar: origemDaChave !== "nenhuma" && Boolean(modeloCurado),

@@ -143,6 +143,7 @@ export interface OrgLlmConfig {
   /** plaintext decifrado — existe só em memória, jamais logado/persistido */
   apiKey: string;
   defaultModel: string | null;
+  reasoningEffort: string | null;
   params: Record<string, unknown>;
   enabledModels: string[];
   orcamento: OrcamentoDaOrg;
@@ -171,6 +172,7 @@ const llmSettingsSchema = z
   .object({
     provider: z.string().min(1).catch('anthropic'),
     default_model: z.string().min(1).nullable().catch(null),
+    reasoning_effort: z.string().nullable().optional().catch(null),
     params: z.record(z.string(), z.unknown()).catch({}),
     enabled_models: z.array(z.string()).catch([]),
   })
@@ -349,10 +351,12 @@ export async function resolveOrgLlmConfig(
     throw new LlmNotConfiguredError();
   }
 
+  const reasoningEffort = settings.reasoning_effort ?? (settings.params?.reasoning_effort as string | undefined) ?? null;
   return {
     provider,
     apiKey,
     defaultModel: settings.default_model ?? null,
+    reasoningEffort: reasoningEffort ?? null,
     params: settings.params,
     enabledModels: settings.enabled_models,
     orcamento,
