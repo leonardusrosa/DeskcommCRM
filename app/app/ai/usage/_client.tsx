@@ -86,10 +86,13 @@ export function UsageDashboardClient({ agents, initial }: Props) {
         <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
-              label="Custo no período"
-              // DÓLAR: esta tela mostrava o MESMO número em duas moedas — o card de
-              // orçamento logo acima em US$ e este StatCard em R$, dois centímetros abaixo.
+              label={q.data.totals.cost_is_complete ? "Custo no período" : "Custo conhecido no período"}
               value={formatCentsUSD(q.data.totals.cost_cents)}
+              hint={
+                q.data.totals.cost_is_complete
+                  ? undefined
+                  : `${q.data.totals.unknown_cost_calls.toLocaleString("pt-BR")} chamada(s) têm tokens, mas ainda não têm preço conhecido; este total é parcial.`
+              }
             />
             <StatCard
               label="Atendimentos com IA"
@@ -100,12 +103,6 @@ export function UsageDashboardClient({ agents, initial }: Props) {
               value={`${(q.data.totals.handoff_rate * 100).toFixed(2)}%`}
               hint="quanto mais alto, mais a IA precisou de ajuda"
             />
-            {/*
-              "p95" quer dizer: em 95 das 100 respostas o tempo foi ATÉ isso.
-              É a medida honesta para tempo de resposta (a média esconde os
-              casos ruins), mas o rótulo não pode ser a sigla — quem lê a tela
-              precisa saber o que fazer com o número, não decorar estatística.
-            */}
             <StatCard
               label="Tempo de resposta"
               value={`${(q.data.totals.p95_latency_ms / 1000).toLocaleString("pt-BR", {

@@ -75,7 +75,7 @@ describe("OpenCode Zen BYOK Onboarding & Credential Flow", () => {
 
     expect(activeCreds).toBeDefined();
     expect(activeCreds!.length).toBeGreaterThan(0);
-    const originalLast4 = activeCreds![0].api_key_last4;
+    const originalLast4 = activeCreds?.[0]?.api_key_last4;
 
     // Simulate an invalid key attempt: it fails before touching or deactivating the working credential
     const invalidKey = "sk-invalid";
