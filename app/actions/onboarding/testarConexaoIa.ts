@@ -6,6 +6,7 @@ import { provarSaldo } from "@/lib/instalacao/prova-de-credito";
 import { byteaToBuffer, decryptKey } from "@/lib/crypto/aes_gcm";
 import { validarEsforcoDeRaciocinio } from "@/lib/ai/raciocinio/catalogo";
 import { PROVEDOR_POR_ID } from "@/lib/ai/pontos/provedores";
+import { normalizarErroDoProvedor } from "@/lib/ai/erros/normalizador";
 import { requireOnboardingCtx } from "./_shared";
 
 export interface TestarConexaoInput {
@@ -18,7 +19,7 @@ export interface TestarConexaoInput {
 
 export type ResultadoTesteConexao =
   | { ok: true }
-  | { ok: false; erro: string };
+  | { ok: false; erro: string; titulo?: string; categoria?: string };
 
 export async function testarConexaoIa(
   input: TestarConexaoInput,
@@ -74,13 +75,19 @@ export async function testarConexaoIa(
     };
   }
 
-  // Validação da chave
+  // Validação da chave no endpoint de listagem
   const val = await validateProviderKey(provider as Provider, chaveParaTeste);
   if (!val.ok) {
-    return { ok: false, erro: val.error ?? "A chave informada foi rejeitada pelo provedor." };
+    const norm = normalizarErroDoProvedor(val.error, 401, model_id);
+    return {
+      ok: false,
+      categoria: norm.categoria,
+      titulo: norm.titulo,
+      erro: norm.mensagem,
+    };
   }
 
-  // Prova de saldo / geração
+  // Prova de saldo / geração de 1 token
   const prova = await provarSaldo(provider, chaveParaTeste, model_id, {
     baseUrl: base_url,
     reasoningEffort: validacaoRaciocinio.effort,
@@ -88,7 +95,9 @@ export async function testarConexaoIa(
   if (!prova.ok) {
     return {
       ok: false,
-      erro: `A chave é válida, mas o teste de geração falhou: ${prova.mensagem}`,
+      categoria: prova.codigo,
+      titulo: prova.titulo,
+      erro: prova.mensagem,
     };
   }
 

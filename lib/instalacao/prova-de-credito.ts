@@ -18,21 +18,23 @@
  * ele mesmo lê, nem ser recusado justamente quando o operador precisa descobrir
  * por que nada funciona.
  */
-import { normalizarErro } from "@/lib/agent-engine/edge/llm/run-model-call";
 import {
   cabecalhosDeAtribuicaoOpenRouter,
   OPENROUTER_ENDPOINT,
   OPENCODE_ZEN_ENDPOINT,
   DEEPSEEK_ENDPOINT,
 } from "@/lib/agent-engine/edge/llm/providers";
+import { normalizarErroDoProvedor } from "@/lib/ai/erros/normalizador";
+import type { AcaoSugeridaErro, CategoriaDeErroDoProvedor } from "@/lib/ai/erros/tipos";
 
 export type ResultadoDaProva =
   | { ok: true }
   | {
       ok: false;
-      /** Mesmos baldes da tela de Execuções — uma régua só para o mesmo erro. */
-      codigo: string;
+      codigo: CategoriaDeErroDoProvedor | string;
+      titulo: string;
       mensagem: string;
+      acaoSugerida: AcaoSugeridaErro | string;
       httpStatus: number | null;
     };
 
@@ -69,22 +71,27 @@ export function montarRequisicaoDeProva(
       return {
         url: "https://api.openai.com/v1/chat/completions",
         headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-        body: { model: modelo, max_tokens: 1, messages: msg },
+        body: {
+          model: modelo,
+          max_tokens: 1,
+          messages: msg,
+          ...(reasoningEffort && reasoningEffort !== "auto" ? { reasoning_effort: reasoningEffort } : {}),
+        },
       };
     case "openrouter":
       return {
         url: `${baseUrl ?? OPENROUTER_ENDPOINT}/chat/completions`,
-        // Os mesmos cabeçalhos de atribuição dos outros dois caminhos. Este era
-        // o terceiro call site de OpenRouter e tinha ficado de fora — se os
-        // headers fossem requisito de funcionamento, como o corpo do PR #266
-        // supôs, a prova de crédito da instalação estaria falhando hoje. Ela
-        // não está: são atribuição, e por isso ficam opcionais aqui também.
         headers: {
           authorization: `Bearer ${apiKey}`,
           "content-type": "application/json",
           ...cabecalhosDeAtribuicaoOpenRouter(),
         },
-        body: { model: modelo, max_tokens: 1, messages: msg },
+        body: {
+          model: modelo,
+          max_tokens: 1,
+          messages: msg,
+          ...(reasoningEffort && reasoningEffort !== "auto" ? { reasoning_effort: reasoningEffort } : {}),
+        },
       };
     case "google":
       return {
@@ -97,7 +104,7 @@ export function montarRequisicaoDeProva(
           generationConfig: { maxOutputTokens: 1 },
         },
       };
-        case "opencode_zen":
+    case "opencode_zen":
       return {
         url: `${baseUrl ?? OPENCODE_ZEN_ENDPOINT}/chat/completions`,
         headers: {
@@ -105,7 +112,12 @@ export function montarRequisicaoDeProva(
           "content-type": "application/json",
           "user-agent": "DeskcommCRM/1.0",
         },
-        body: { model: modelo, max_tokens: 1, messages: msg },
+        body: {
+          model: modelo,
+          max_tokens: 1,
+          messages: msg,
+          ...(reasoningEffort && reasoningEffort !== "auto" ? { reasoning_effort: reasoningEffort } : {}),
+        },
       };
     case "deepseek":
       return {
@@ -114,28 +126,33 @@ export function montarRequisicaoDeProva(
           authorization: `Bearer ${apiKey}`,
           "content-type": "application/json",
         },
-        body: { model: modelo, max_tokens: 1, messages: msg },
+        body: {
+          model: modelo,
+          max_tokens: 1,
+          messages: msg,
+          ...(reasoningEffort && reasoningEffort !== "auto" ? { reasoning_effort: reasoningEffort } : {}),
+        },
       };
     default:
-      // Fail-closed: provedor que este módulo não sabe cobrar não recebe um
-      // "ok" por omissão — seria a frase tranquilizadora de novo.
       return null;
   }
 }
 
-/** Traduz a resposta HTTP no mesmo vocabulário de erro do runtime. */
-export function classificarResposta(status: number, corpo: string): ResultadoDaProva {
+/** Traduz a resposta HTTP no vocabulário amigável e seguro de erro do runtime. */
+export function classificarResposta(
+  status: number,
+  corpo: string,
+  modelId?: string,
+): ResultadoDaProva {
   if (status >= 200 && status < 300) return { ok: true };
-  // `normalizarErro` lê `status` do objeto — é a régua canônica, compartilhada
-  // com a tela de Execuções, e ela também redige a mensagem do provedor (que
-  // pode ecoar header de autorização em endpoint próprio).
-  const err = Object.assign(new Error(corpo), { status });
-  const n = normalizarErro(err);
+  const amigavel = normalizarErroDoProvedor(corpo, status, modelId);
   return {
     ok: false,
-    codigo: n.error_code,
-    mensagem: n.error_message,
-    httpStatus: n.http_status,
+    codigo: amigavel.categoria,
+    titulo: amigavel.titulo,
+    mensagem: amigavel.mensagem,
+    acaoSugerida: amigavel.acaoSugerida,
+    httpStatus: typeof status === "number" ? status : null,
   };
 }
 
@@ -151,8 +168,10 @@ export async function provarSaldo(
   if (!req) {
     return {
       ok: false,
-      codigo: "provedor_desconhecido",
+      codigo: "UNKNOWN_PROVIDER_ERROR",
+      titulo: "Provedor não reconhecido",
       mensagem: `Não sei como testar o provedor "${provider}".`,
+      acaoSugerida: "tentar_novamente",
       httpStatus: null,
     };
   }
@@ -168,12 +187,17 @@ export async function provarSaldo(
       signal: ctrl.signal,
     });
     const corpo = await res.text().catch(() => "");
-    return classificarResposta(res.status, corpo);
+    return classificarResposta(res.status, corpo, modelo);
   } catch (err) {
-    // Rede fora, DNS, timeout: NÃO é chave ruim, e dizer que é mandaria o
-    // operador trocar uma chave que está certa.
-    const n = normalizarErro(err);
-    return { ok: false, codigo: n.error_code, mensagem: n.error_message, httpStatus: n.http_status };
+    const amigavel = normalizarErroDoProvedor(err, null, modelo);
+    return {
+      ok: false,
+      codigo: amigavel.categoria,
+      titulo: amigavel.titulo,
+      mensagem: amigavel.mensagem,
+      acaoSugerida: amigavel.acaoSugerida,
+      httpStatus: amigavel.httpStatus ?? null,
+    };
   } finally {
     clearTimeout(timer);
   }

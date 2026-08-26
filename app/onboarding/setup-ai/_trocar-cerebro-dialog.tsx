@@ -32,13 +32,10 @@ export interface ModeloOption {
 }
 
 interface Props {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  currentProvider: string;
-  currentModel: string;
+  open: boolean; onOpenChange: (open: boolean) => void;
+  currentProvider: string; currentModel: string;
   currentReasoningEffort?: string | null;
-  provedores: readonly ProvedorSuportado[];
-  modelos: ModeloOption[];
+  provedores: readonly ProvedorSuportado[]; modelos: ModeloOption[];
   chavesDaOrg: Record<string, string>; // provider -> last4
   onSuccess: (res: {
     provedor: string;
@@ -223,11 +220,16 @@ export function TrocarCerebroDialog({
                 }}
                 className="h-9 w-full rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {modelosDoProvedor.map((m) => (
-                  <option key={m.model_id} value={m.model_id}>
-                    {m.display_name || m.model_id}{m.supports_tools ? " (Tools ✓)" : ""}
-                  </option>
-                ))}
+                {modelosDoProvedor.map((m) => {
+                  const isFree = m.model_id.toLowerCase().endsWith("-free");
+                  const freeSuffix = isFree ? " [Free]" : "";
+                  const toolsSuffix = m.supports_tools ? " (Tools ✓)" : "";
+                  return (
+                    <option key={m.model_id} value={m.model_id}>
+                      {(m.display_name || m.model_id) + freeSuffix + toolsSuffix}
+                    </option>
+                  );
+                })}
               </select>
             ) : (
               <Input
