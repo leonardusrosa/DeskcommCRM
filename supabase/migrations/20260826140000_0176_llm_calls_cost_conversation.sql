@@ -1,4 +1,4 @@
--- 0155 — atribuição financeira de IA por conversa + fallback de preço honesto
+-- 0176 — atribuição financeira de IA por conversa + fallback de preço honesto
 --
 -- `llm_calls` já é o ledger canônico de IA, mas perdia a conversa/mensagem que
 -- originou a chamada. Ao mesmo tempo, `pricing.ts` conhece só parte dos modelos:
