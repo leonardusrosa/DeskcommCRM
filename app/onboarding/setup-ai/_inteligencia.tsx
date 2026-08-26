@@ -10,7 +10,7 @@ import { ROTULOS_DE_RACIOCINIO, type NivelDeRaciocinio } from "@/lib/ai/raciocin
 import { TrocarCerebroDialog, type ModeloOption } from "./_trocar-cerebro-dialog";
 
 export interface EstadoDaChave {
-  origem: "org" | "instalacao" | "nenhuma";
+  origem: "org" | "nenhuma";
   provedor: string;
   modelo: string;
   raciocinio?: string | null;
@@ -29,18 +29,17 @@ interface Props {
   inicial: EstadoDaChave;
   provedores: readonly ProvedorSuportado[];
   modelos: ModeloOption[];
-  chavesDeInstalacao: string[];
-  chavesDaOrg: string[];
+  chavesDaOrg: Record<string, string>; // provider -> last4
 }
 
 export function InteligenciaDele({
   inicial,
   provedores,
   modelos,
-  chavesDeInstalacao,
-  chavesDaOrg,
+  chavesDaOrg: chavesIniciais,
 }: Props) {
   const [chave, setChave] = useState<EstadoDaChave>(inicial);
+  const [chavesDaOrg, setChavesDaOrg] = useState<Record<string, string>>(chavesIniciais);
   const [prova, setProva] = useState<Prova | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -99,7 +98,7 @@ export function InteligenciaDele({
                 {chave.rotulo || chave.provedor}
               </span>
               {chave.final ? (
-                <span className="text-xs text-muted-foreground">(final {chave.final})</span>
+                <span className="text-xs text-muted-foreground">(final ••••{chave.final})</span>
               ) : null}
             </div>
 
@@ -116,8 +115,8 @@ export function InteligenciaDele({
                 </>
               )}
               <span>•</span>
-              <Badge variant={chave.origem === "org" ? "default" : "secondary"} className="text-[10px] font-normal">
-                {chave.origem === "org" ? "Usando chave desta empresa" : "Usando chave da instalação"}
+              <Badge variant="outline" className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">
+                {chave.final ? `Chave ativa (••••${chave.final})` : "Chave da empresa ativa"}
               </Badge>
             </div>
           </div>
@@ -166,10 +165,8 @@ export function InteligenciaDele({
         currentProvider={chave.provedor}
         currentModel={chave.modelo}
         currentReasoningEffort={chave.raciocinio}
-        currentOrigem={chave.origem}
         provedores={provedores}
         modelos={modelos}
-        chavesDeInstalacao={chavesDeInstalacao}
         chavesDaOrg={chavesDaOrg}
         onSuccess={(resultado) => {
           setChave({
@@ -180,6 +177,12 @@ export function InteligenciaDele({
             rotulo: resultado.rotulo,
             final: resultado.final,
           });
+          if (resultado.final) {
+            setChavesDaOrg((prev) => ({
+              ...prev,
+              [resultado.provedor]: resultado.final!,
+            }));
+          }
           setProva({ estado: "conferindo" });
           setTimeout(() => {
             void conferirConexao();

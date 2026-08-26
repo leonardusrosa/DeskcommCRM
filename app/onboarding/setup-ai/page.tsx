@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { requireAuth, resolveActiveOrg } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
 import { lerRetratoDaInstalacao } from "@/lib/instalacao/retrato";
-import { lerAmbiente } from "@/lib/instalacao/ambiente";
 import { PROVEDORES } from "@/lib/ai/pontos/provedores";
 import { SetupAiForm } from "./_form";
 import { InteligenciaDele } from "./_inteligencia";
@@ -28,17 +27,18 @@ export default async function SetupAiPage() {
       .order("display_name", { ascending: true }),
     supabase
       .from("ai_provider_credentials")
-      .select("provider")
+      .select("provider, api_key_last4")
       .eq("organization_id", activeOrg.orgId)
       .eq("is_active", true)
       .not("validated_at", "is", null),
   ]);
 
-  const ambiente = lerAmbiente();
-  const chavesDeInstalacao = Object.keys(ambiente.chavesDeProvedor).filter(
-    (k) => ambiente.chavesDeProvedor[k] === true,
-  );
-  const chavesDaOrg = Array.from(new Set((credsOrg ?? []).map((c) => c.provider)));
+  const chavesDaOrg: Record<string, string> = {};
+  for (const c of credsOrg ?? []) {
+    if (c.provider && c.api_key_last4) {
+      chavesDaOrg[c.provider] = c.api_key_last4;
+    }
+  }
 
   const porNome = new Map(TOOL_CATALOG.map((c) => [c.name, c]));
   const capacidades = capacidadesPadraoDoOnboarding()
@@ -58,7 +58,7 @@ export default async function SetupAiPage() {
 
       <InteligenciaDele
         inicial={{
-          origem: retrato.inteligencia.origemDaChave,
+          origem: retrato.inteligencia.origemDaChave === "org" ? "org" : "nenhuma",
           provedor: retrato.inteligencia.provedor,
           modelo: retrato.inteligencia.modeloCurado || "padrão",
           raciocinio: retrato.inteligencia.raciocinio,
@@ -68,7 +68,6 @@ export default async function SetupAiPage() {
         }}
         provedores={PROVEDORES}
         modelos={modelosRaw ?? []}
-        chavesDeInstalacao={chavesDeInstalacao}
         chavesDaOrg={chavesDaOrg}
       />
 

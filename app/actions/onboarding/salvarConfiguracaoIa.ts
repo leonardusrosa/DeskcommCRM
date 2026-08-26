@@ -6,7 +6,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { guardarCredencial } from "@/lib/ai/credenciais/guardar";
 import { IDS_DE_PROVEDOR, PROVEDOR_POR_ID } from "@/lib/ai/pontos/provedores";
 import type { Provider } from "@/lib/ai/provider-validators";
-import { lerAmbiente } from "@/lib/instalacao/ambiente";
 import { validarEsforcoDeRaciocinio } from "@/lib/ai/raciocinio/catalogo";
 import { requireOnboardingCtx, OnboardingError } from "./_shared";
 
@@ -24,7 +23,7 @@ export type ResultadoSalvarConfigIa =
       provedor: string;
       modelo: string;
       raciocinio: string | null;
-      origem: "org" | "instalacao";
+      origem: "org";
       rotulo: string;
       final: string | null;
     }
@@ -77,7 +76,6 @@ export async function salvarConfiguracaoIa(
   const admin = createAdminClient();
   const apiKey = (input.api_key ?? "").trim();
   let finalKey: string | null = null;
-  let origem: "org" | "instalacao" = "instalacao";
 
   if (apiKey.length > 0) {
     if (apiKey.length < 8) {
@@ -103,9 +101,8 @@ export async function salvarConfiguracaoIa(
       };
     }
     finalKey = r.last4;
-    origem = "org";
   } else {
-    // Sem nova chave: verificar se existe credencial ativa da org ou da instalação
+    // Sem nova chave: verificar se existe credencial ativa e validada da org
     const { data: credsOrg } = await admin
       .from("ai_provider_credentials")
       .select("id, api_key_last4")
@@ -118,18 +115,13 @@ export async function salvarConfiguracaoIa(
 
     const credExistente = credsOrg?.[0];
     if (credExistente) {
-      origem = "org";
       finalKey = credExistente.api_key_last4;
     } else {
-      const ambiente = lerAmbiente();
-      if (ambiente.chavesDeProvedor[provider] !== true) {
-        return {
-          ok: false,
-          erro: `Para usar ${PROVEDOR_POR_ID.get(provider)?.rotulo ?? provider}, é necessário fornecer uma chave de API (BYOK).`,
-        };
-      }
-      origem = "instalacao";
-      finalKey = null;
+      const nomeProvedor = PROVEDOR_POR_ID.get(provider)?.rotulo ?? provider;
+      return {
+        ok: false,
+        erro: `Adicione uma chave da ${nomeProvedor} para usar este provedor.`,
+      };
     }
   }
 
@@ -179,7 +171,7 @@ export async function salvarConfiguracaoIa(
     provedor: provider,
     modelo: modelId,
     raciocinio: effortEfetivo,
-    origem,
+    origem: "org",
     rotulo: PROVEDOR_POR_ID.get(provider)?.rotulo ?? provider,
     final: finalKey,
   };

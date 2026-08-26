@@ -19,18 +19,14 @@ describe("Onboarding AI Provider & Model Switching E2E", () => {
     ]);
   });
 
-  it("2. verifies installation fallback precedence on organization portrait", async () => {
-    // Buscar primeira organização existente
+  it("2. verifies portrait resolution for organization BYOK credential", async () => {
     const { data: org } = await admin
       .from("organizations")
       .select("id, settings")
       .limit(1)
       .single();
 
-    if (!org) {
-      console.log("Nenhuma organização encontrada para o teste, pulando checagem de banco.");
-      return;
-    }
+    if (!org) return;
 
     // 1. Quando settings.llm tem opencode_zen
     await admin
@@ -52,9 +48,10 @@ describe("Onboarding AI Provider & Model Switching E2E", () => {
 
     expect(retratoZen.inteligencia.provedor).toBe("opencode_zen");
     expect(retratoZen.inteligencia.modeloCurado).toBe("mimo-v2.5-free");
-    expect(retratoZen.inteligencia.origemDaChave).toBe("instalacao");
+    expect(retratoZen.inteligencia.origemDaChave).toBe("org");
+    expect(retratoZen.inteligencia.prontaParaPublicar).toBe(true);
 
-    // 2. Quando a org muda para deepseek (com fallback de instalação ou sem chave)
+    // 2. Quando a org muda para deepseek
     await admin
       .from("organizations")
       .update({

@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -9,11 +9,10 @@ import type { ProvedorSuportado } from "@/lib/ai/pontos/provedores";
 
 interface Props {
   provedorInfo: ProvedorSuportado | undefined;
-  temChaveInstalacao: boolean;
   temChaveOrg: boolean;
-  temChaveDisponivel: boolean;
-  customKeyMode: boolean;
-  setCustomKeyMode: (val: boolean) => void;
+  last4Org: string | null;
+  editMode: boolean;
+  setEditMode: (val: boolean) => void;
   apiKey: string;
   setApiKey: (val: string) => void;
   baseUrl: string;
@@ -23,61 +22,59 @@ interface Props {
 
 export function TrocarCerebroCredenciais({
   provedorInfo,
-  temChaveInstalacao,
   temChaveOrg,
-  temChaveDisponivel,
-  customKeyMode,
-  setCustomKeyMode,
+  last4Org,
+  editMode,
+  setEditMode,
   apiKey,
   setApiKey,
   baseUrl,
   setBaseUrl,
   setTesteSucesso,
 }: Props) {
+  const nomeProvedor = provedorInfo?.rotulo ?? "Provedor";
+
   return (
     <div className="space-y-2 rounded-lg border bg-muted/30 p-3.5">
       <div className="flex items-center justify-between">
         <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Credencial de Acesso
+          Chave de API (BYOK)
         </Label>
-        {temChaveInstalacao && !customKeyMode && (
-          <Badge variant="secondary" className="text-[11px] font-normal">
-            Chave da instalação disponível
-          </Badge>
-        )}
-        {temChaveOrg && !customKeyMode && !temChaveInstalacao && (
+        {temChaveOrg && !editMode && (
           <Badge
             variant="outline"
-            className="text-[11px] font-normal text-emerald-600 dark:text-emerald-400"
+            className="text-[11px] font-normal text-emerald-600 dark:text-emerald-400 gap-1"
           >
-            Chave BYOK salva nesta empresa
+            <Check className="h-3 w-3" />
+            Configurada {last4Org ? `••••${last4Org}` : ""}
           </Badge>
         )}
       </div>
 
-      {temChaveDisponivel && !customKeyMode ? (
-        <div className="space-y-2 pt-1">
+      {temChaveOrg && !editMode ? (
+        <div className="flex items-center justify-between pt-1 gap-2">
           <p className="text-xs text-muted-foreground">
-            {temChaveOrg
-              ? "Esta empresa já possui uma chave BYOK configurada para este provedor."
-              : "Usando a chave padrão configurada na instalação do Deskcomm."}
+            Esta empresa já possui uma chave configurada para {nomeProvedor}.
           </p>
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="h-7 px-2 text-xs text-primary underline-offset-4 hover:underline"
-            onClick={() => setCustomKeyMode(true)}
+            className="h-7 px-2.5 text-xs shrink-0"
+            onClick={() => {
+              setEditMode(true);
+              setApiKey("");
+            }}
           >
-            Usar uma chave de API própria (BYOK)
+            Atualizar chave
           </Button>
         </div>
       ) : (
         <div className="space-y-3 pt-1">
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label htmlFor="modal_api_key" className="text-xs">
-                Chave de API {temChaveDisponivel ? "(Substituir)" : "(Obrigatória)"}
+              <Label htmlFor="modal_api_key" className="text-xs font-medium">
+                Chave de API {temChaveOrg ? "(Nova chave para substituir)" : "(Obrigatória)"}
               </Label>
               {provedorInfo?.ondePegarAChave && (
                 <a
@@ -98,41 +95,41 @@ export function TrocarCerebroCredenciais({
                 setApiKey(e.target.value);
                 setTesteSucesso(null);
               }}
-              placeholder="Cole aqui a sua chave de API"
+              placeholder={`Cole aqui sua chave da ${nomeProvedor}`}
               autoComplete="off"
             />
           </div>
 
-          {temChaveDisponivel && (
+          {temChaveOrg && (
             <Button
               type="button"
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-xs text-muted-foreground"
               onClick={() => {
-                setCustomKeyMode(false);
+                setEditMode(false);
                 setApiKey("");
               }}
             >
-              ← Voltar para chave padrão
+              ← Manter chave configurada {last4Org ? `(••••${last4Org})` : ""}
             </Button>
           )}
-        </div>
-      )}
 
-      {provedorInfo?.aceitaEndpointProprio && (
-        <div className="space-y-1.5 pt-2">
-          <Label htmlFor="modal_base_url" className="text-xs text-muted-foreground">
-            Endpoint / Base URL customizada (opcional)
-          </Label>
-          <Input
-            id="modal_base_url"
-            type="url"
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://api.exemplo.com/v1"
-            className="h-8 text-xs"
-          />
+          {provedorInfo?.aceitaEndpointProprio && (
+            <div className="space-y-1.5 pt-1">
+              <Label htmlFor="modal_base_url" className="text-xs text-muted-foreground">
+                Endpoint / Base URL customizada (opcional)
+              </Label>
+              <Input
+                id="modal_base_url"
+                type="url"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder="https://api.exemplo.com/v1"
+                className="h-8 text-xs"
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

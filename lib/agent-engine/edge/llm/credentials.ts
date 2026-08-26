@@ -337,17 +337,9 @@ export async function resolveOrgLlmConfig(
       iv: byteaToBuffer(cred.api_key_iv),
       tag: byteaToBuffer(cred.api_key_tag),
     });
-  } else if (provider === 'anthropic' && cfg.anthropicApiKey) {
-    apiKey = cfg.anthropicApiKey;
-  } else if (provider === 'openai' && cfg.openaiApiKey) {
-    apiKey = cfg.openaiApiKey;
-  } else if (provider === 'openrouter' && cfg.openrouterApiKey) {
-    apiKey = cfg.openrouterApiKey;
-  } else if (provider === 'opencode_zen' && cfg.opencodeZenApiKey) {
-    apiKey = cfg.opencodeZenApiKey;
-  } else if (provider === 'deepseek' && cfg.deepseekApiKey) {
-    apiKey = cfg.deepseekApiKey;
   } else {
+    // Organização precisa da sua própria chave BYOK salva em ai_provider_credentials.
+    // Não há fallback transparente para variáveis de ambiente na execução de clientes.
     throw new LlmNotConfiguredError();
   }
 

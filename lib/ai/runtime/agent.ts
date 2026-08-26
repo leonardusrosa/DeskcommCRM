@@ -319,16 +319,33 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
         return await failRun(run, `credential_${reason}`, "credential unavailable", startedAt);
       }
     } else {
-      const daInstalacao = chaveDePlataforma(version.provider);
-      if (!daInstalacao) {
+      const { data: credsOrg } = await admin
+        .from("ai_provider_credentials")
+        .select("id")
+        .eq("organization_id", run.organization_id)
+        .eq("provider", version.provider)
+        .eq("is_active", true)
+        .not("validated_at", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      const credId = credsOrg?.[0]?.id as string | undefined;
+      if (credId) {
+        try {
+          const credential = await loadCredential(credId, run.organization_id);
+          credentialApiKey = credential.apiKey;
+        } catch (err) {
+          const reason = err instanceof CredentialUnavailableError ? err.reason : "decrypt_failed";
+          return await failRun(run, `credential_${reason}`, "credential unavailable", startedAt);
+        }
+      } else {
         return await failRun(
           run,
           "credential_invalid",
-          `sem chave para ${version.provider}: cadastre em IA › Credenciais ou configure a chave desta instalação`,
+          `Sem credencial para ${version.provider}: cadastre a chave da sua empresa em IA › Credenciais.`,
           startedAt,
         );
       }
-      credentialApiKey = daInstalacao;
     }
 
     // 5) Resolve inbound text + dispatch context.

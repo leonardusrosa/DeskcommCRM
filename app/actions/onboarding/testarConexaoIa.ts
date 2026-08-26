@@ -3,9 +3,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { validateProviderKey, type Provider } from "@/lib/ai/provider-validators";
 import { provarSaldo } from "@/lib/instalacao/prova-de-credito";
-import { lerAmbiente } from "@/lib/instalacao/ambiente";
 import { byteaToBuffer, decryptKey } from "@/lib/crypto/aes_gcm";
 import { validarEsforcoDeRaciocinio } from "@/lib/ai/raciocinio/catalogo";
+import { PROVEDOR_POR_ID } from "@/lib/ai/pontos/provedores";
 import { requireOnboardingCtx } from "./_shared";
 
 export interface TestarConexaoInput {
@@ -43,7 +43,7 @@ export async function testarConexaoIa(
     return { ok: false, erro: validacaoRaciocinio.motivo };
   }
 
-  // Se não foi informada uma chave no formulário, buscar a credencial existente
+  // Se não foi informada uma chave no formulário, buscar a credencial existente da organização
   if (!chaveParaTeste) {
     const admin = createAdminClient();
     const { data: creds } = await admin
@@ -63,23 +63,14 @@ export async function testarConexaoIa(
         iv: byteaToBuffer(c.api_key_iv),
         tag: byteaToBuffer(c.api_key_tag),
       });
-    } else {
-      // Verificar fallback de instalação
-      const ambiente = lerAmbiente();
-      if (ambiente.chavesDeProvedor[provider] === true) {
-        if (provider === "opencode_zen") chaveParaTeste = process.env.OPENCODE_ZEN_API_KEY || "";
-        else if (provider === "deepseek") chaveParaTeste = process.env.DEEPSEEK_API_KEY || "";
-        else if (provider === "anthropic") chaveParaTeste = process.env.ANTHROPIC_API_KEY || "";
-        else if (provider === "openai") chaveParaTeste = process.env.OPENAI_API_KEY || "";
-        else if (provider === "openrouter") chaveParaTeste = process.env.OPENROUTER_API_KEY || "";
-      }
     }
   }
 
   if (!chaveParaTeste) {
+    const nomeProvedor = PROVEDOR_POR_ID.get(provider)?.rotulo ?? provider;
     return {
       ok: false,
-      erro: "Nenhuma chave encontrada para este provedor. Insira sua chave de API.",
+      erro: `Nenhuma chave configurada para ${nomeProvedor}. Insira a chave de API da sua empresa.`,
     };
   }
 

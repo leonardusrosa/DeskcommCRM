@@ -25,10 +25,8 @@ export interface ModeloOption {
   provider: string;
   model_id: string;
   display_name: string;
-  supports_tools: boolean;
-  supports_vision: boolean;
-  supports_reasoning?: boolean;
-  reasoning_efforts_supported?: string[];
+  supports_tools: boolean; supports_vision: boolean;
+  supports_reasoning?: boolean; reasoning_efforts_supported?: string[];
   reasoning_effort_default?: string | null;
   input_price_per_million_cents: number | null;
 }
@@ -39,16 +37,14 @@ interface Props {
   currentProvider: string;
   currentModel: string;
   currentReasoningEffort?: string | null;
-  currentOrigem: "org" | "instalacao" | "nenhuma";
   provedores: readonly ProvedorSuportado[];
   modelos: ModeloOption[];
-  chavesDeInstalacao: string[];
-  chavesDaOrg: string[];
+  chavesDaOrg: Record<string, string>; // provider -> last4
   onSuccess: (res: {
     provedor: string;
     modelo: string;
     raciocinio: string | null;
-    origem: "org" | "instalacao";
+    origem: "org";
     rotulo: string;
     final: string | null;
   }) => void;
@@ -62,7 +58,6 @@ export function TrocarCerebroDialog({
   currentReasoningEffort = null,
   provedores,
   modelos,
-  chavesDeInstalacao,
   chavesDaOrg,
   onSuccess,
 }: Props) {
@@ -71,7 +66,7 @@ export function TrocarCerebroDialog({
   const [reasoningEffort, setReasoningEffort] = useState<string | null>(currentReasoningEffort);
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
-  const [customKeyMode, setCustomKeyMode] = useState(false);
+  const [editMode, setEditMode] = useState(false);
   const [testando, setTestando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [testeSucesso, setTesteSucesso] = useState<boolean | null>(null);
@@ -83,7 +78,7 @@ export function TrocarCerebroDialog({
       setReasoningEffort(currentReasoningEffort ?? null);
       setApiKey("");
       setBaseUrl("");
-      setCustomKeyMode(false);
+      setEditMode(false);
       setTesteSucesso(null);
     }
   }, [open, currentProvider, currentModel, currentReasoningEffort]);
@@ -102,7 +97,9 @@ export function TrocarCerebroDialog({
 
   useEffect(() => {
     if (!modelosDoProvedor.some((m) => m.model_id === selectedModel)) {
-      if (modelosDoProvedor[0]) setSelectedModel(modelosDoProvedor[0].model_id);
+      if (modelosDoProvedor.length > 0 && modelosDoProvedor[0]) {
+        setSelectedModel(modelosDoProvedor[0].model_id);
+      }
     }
   }, [selectedProvider, modelosDoProvedor, selectedModel]);
 
@@ -119,7 +116,8 @@ export function TrocarCerebroDialog({
     }
   }, [modeloSelecionadoObj, reasoningEffort]);
 
-  const temChaveDisponivel = chavesDeInstalacao.includes(selectedProvider) || chavesDaOrg.includes(selectedProvider);
+  const temChaveOrg = Boolean(chavesDaOrg[selectedProvider]);
+  const last4Org = chavesDaOrg[selectedProvider] || null;
 
   const handleTestar = async () => {
     setTestando(true);
@@ -148,8 +146,9 @@ export function TrocarCerebroDialog({
   };
 
   const handleSalvar = async () => {
-    if (!temChaveDisponivel && apiKey.trim().length < 8) {
-      toast.error("Por favor, insira uma chave de API válida para este provedor.");
+    const nomeProvedor = provedorInfo?.rotulo ?? selectedProvider;
+    if (!temChaveOrg && apiKey.trim().length < 8) {
+      toast.error(`Adicione uma chave da ${nomeProvedor} para usar este provedor.`);
       return;
     }
 
@@ -199,6 +198,8 @@ export function TrocarCerebroDialog({
               value={selectedProvider}
               onChange={(e) => {
                 setSelectedProvider(e.target.value);
+                setEditMode(false);
+                setApiKey("");
                 setTesteSucesso(null);
               }}
               className="h-9 w-full rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -233,7 +234,7 @@ export function TrocarCerebroDialog({
                 id="modal_model_select"
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
-                placeholder="Identificador do modelo (ex: deepseek-v4-flash)"
+                placeholder="Identificador do modelo"
               />
             )}
           </div>
@@ -248,11 +249,10 @@ export function TrocarCerebroDialog({
 
           <TrocarCerebroCredenciais
             provedorInfo={provedorInfo}
-            temChaveInstalacao={chavesDeInstalacao.includes(selectedProvider)}
-            temChaveOrg={chavesDaOrg.includes(selectedProvider)}
-            temChaveDisponivel={temChaveDisponivel}
-            customKeyMode={customKeyMode}
-            setCustomKeyMode={setCustomKeyMode}
+            temChaveOrg={temChaveOrg}
+            last4Org={last4Org}
+            editMode={editMode}
+            setEditMode={setEditMode}
             apiKey={apiKey}
             setApiKey={setApiKey}
             baseUrl={baseUrl}
@@ -281,7 +281,7 @@ export function TrocarCerebroDialog({
             <Button
               type="button"
               size="sm"
-              disabled={salvando || (!temChaveDisponivel && apiKey.trim().length < 8)}
+              disabled={salvando || (!temChaveOrg && apiKey.trim().length < 8)}
               onClick={handleSalvar}
             >
               {salvando ? "Salvando..." : "Salvar"}
