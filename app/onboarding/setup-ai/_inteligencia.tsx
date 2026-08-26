@@ -1,41 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { CheckCircle2, AlertCircle, RefreshCw, Cpu } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { salvarChaveDaIa } from "@/app/actions/onboarding/chaveDaIa";
-import { PROVEDORES } from "@/lib/ai/pontos/provedores";
+import { Badge } from "@/components/ui/badge";
+import type { ProvedorSuportado } from "@/lib/ai/pontos/provedores";
+import { TrocarCerebroDialog, type ModeloOption } from "./_trocar-cerebro-dialog";
 
-/**
- * "O CÉREBRO DELE" — a chave, medida e testada onde ela passa a importar.
- *
- * Duas coisas que o wizard não fazia e que custam caro no primeiro dia:
- *
- * 1. **Sem chave, era um beco.** O passo 1 mede e escreve "Falta a chave da
- *    inteligência artificial" — diagnóstico certo, saída nenhuma. Aqui a pessoa
- *    cola a chave no lugar onde ela é usada, um clique antes de o funcionário
- *    nascer com ela.
- *
- * 2. **"Validada" nunca significou "funciona".** O validador de chave bate num
- *    endpoint de LISTAGEM, que responde 200 com a conta zerada — então o selo
- *    verde prova que a chave existe, nunca que ela vai gerar uma resposta. Quem
- *    instalava, via "Validada" e recebia erro na primeira conversa não tinha
- *    onde olhar. A única coisa que prova saldo é uma geração, e é isso que
- *    `?provar=1` faz.
- *
- * ⚠️ A PROVA RODA NO CLIENTE, DEPOIS DE MONTAR — não no render do servidor. Ela
- * é uma ida ao provedor com timeout de 8 segundos: no render, o passo inteiro
- * ficaria em branco esperando por ela, e uma tela lenta é o que se lê como
- * produto quebrado.
- */
 export interface EstadoDaChave {
   origem: "org" | "instalacao" | "nenhuma";
   provedor: string;
+  modelo: string;
   rotulo: string;
-  /** Só os últimos dígitos — o resto nunca sai do banco cifrado. */
   final: string | null;
 }
 
@@ -45,156 +22,144 @@ type Prova =
   | { estado: "problema"; mensagem: string }
   | { estado: "nao_deu" };
 
-export function InteligenciaDele({ inicial }: { inicial: EstadoDaChave }) {
-  const [chave, setChave] = useState(inicial);
+interface Props {
+  inicial: EstadoDaChave;
+  provedores: readonly ProvedorSuportado[];
+  modelos: ModeloOption[];
+  chavesDeInstalacao: string[];
+  chavesDaOrg: string[];
+}
+
+export function InteligenciaDele({
+  inicial,
+  provedores,
+  modelos,
+  chavesDeInstalacao,
+  chavesDaOrg,
+}: Props) {
+  const [chave, setChave] = useState<EstadoDaChave>(inicial);
   const [prova, setProva] = useState<Prova | null>(null);
-  const [salvando, setSalvando] = useState(false);
-  const [apiKey, setApiKey] = useState("");
-  const [provedor, setProvedor] = useState(inicial.provedor);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const temChave = chave.origem !== "nenhuma";
 
+  const conferirConexao = async () => {
+    if (!temChave) return;
+    setProva({ estado: "conferindo" });
+    try {
+      const r = await fetch("/api/v1/system/instalacao?provar=1");
+      const corpo = r.ok ? await r.json() : null;
+      const p = corpo?.data?.prova as
+        | { feita: boolean; ok?: boolean; mensagem?: string; aindaVerificando?: boolean }
+        | undefined;
+
+      if (!p || !p.feita) return setProva({ estado: "nao_deu" });
+      if (p.ok) return setProva({ estado: "ok" });
+      setProva({ estado: "problema", mensagem: p.mensagem ?? "" });
+    } catch {
+      setProva({ estado: "nao_deu" });
+    }
+  };
+
   useEffect(() => {
     if (!temChave) return;
-    let vivo = true;
-    let tentativas = 0;
-
-    async function conferir(): Promise<void> {
-      setProva({ estado: "conferindo" });
-      try {
-        const r = await fetch("/api/v1/system/instalacao?provar=1");
-        const corpo = r.ok ? await r.json() : null;
-        if (!vivo) return;
-        const p = corpo?.data?.prova as
-          | { feita: boolean; ok?: boolean; mensagem?: string; aindaVerificando?: boolean }
-          | undefined;
-
-        // A chave recém-colada ainda está sendo validada em segundo plano, e
-        // `loadCredential` recusa credencial não validada. Medido percorrendo o
-        // wizard: quem colava a chave e recebia a resposta no mesmo segundo lia
-        // "não consegui testar o crédito" sobre uma chave que funcionava.
-        // Esperar e perguntar de novo é a resposta certa — desistir na primeira
-        // manda a pessoa desconfiar do que está correto.
-        if (p?.aindaVerificando && tentativas < 4) {
-          tentativas += 1;
-          setTimeout(() => void (vivo && conferir()), 2000);
-          return;
-        }
-
-        // "Não deu para conferir" é resposta distinta de "está com problema", e
-        // colapsar as duas mandaria a pessoa trocar uma chave que está certa.
-        if (!p || !p.feita) return setProva({ estado: "nao_deu" });
-        if (p.ok) return setProva({ estado: "ok" });
-        setProva({ estado: "problema", mensagem: p.mensagem ?? "" });
-      } catch {
-        if (vivo) setProva({ estado: "nao_deu" });
-      }
-    }
-
-    void conferir();
-    return () => {
-      vivo = false;
-    };
-  }, [temChave]);
-
-  if (!temChave) {
-    return (
-      <section className="space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-5">
-        <div>
-          <h3 className="text-sm font-medium">Ele ainda não tem cérebro</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Seu funcionário pensa com a inteligência artificial que você contratar.
-            A instalação não trouxe nenhuma chave — cole a sua aqui e ele já nasce
-            funcionando.
-          </p>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,180px)_1fr]">
-          <div className="space-y-1.5">
-            <Label htmlFor="provedor_da_ia">Qual você contratou</Label>
-            <select
-              id="provedor_da_ia"
-              value={provedor}
-              onChange={(e) => setProvedor(e.target.value)}
-              className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-            >
-              {PROVEDORES.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.rotulo}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="api_key_da_ia">A chave</Label>
-            <Input
-              id="api_key_da_ia"
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Cole aqui a chave que a empresa de IA te deu"
-              autoComplete="off"
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button
-            type="button"
-            size="sm"
-            disabled={salvando || apiKey.trim().length < 8}
-            onClick={async () => {
-              setSalvando(true);
-              const fd = new FormData();
-              fd.set("provider", provedor);
-              fd.set("api_key", apiKey);
-              const r = await salvarChaveDaIa(fd);
-              setSalvando(false);
-              if (!r.ok) return toast.error(r.erro);
-              // A chave sai da memória da tela no mesmo instante em que é aceita.
-              setApiKey("");
-              setChave({
-                origem: "org",
-                provedor,
-                rotulo: PROVEDORES.find((p) => p.id === provedor)?.rotulo ?? provedor,
-                final: r.final,
-              });
-              toast.success("Chave guardada. Agora ele pode pensar.");
-            }}
-          >
-            {salvando ? "Guardando..." : "Guardar a chave"}
-          </Button>
-          <span className="text-xs text-muted-foreground">
-            Ela é guardada cifrada — nem nós conseguimos lê-la depois.
-          </span>
-        </div>
-      </section>
-    );
-  }
+    void conferirConexao();
+  }, [chave.provedor, chave.modelo, temChave]);
 
   return (
-    <section className="space-y-1 rounded-lg border bg-background p-5">
-      <h3 className="text-sm font-medium">
-        O cérebro dele: {chave.rotulo}
-        {chave.final ? (
-          <span className="ml-1 font-normal text-muted-foreground">(final {chave.final})</span>
-        ) : null}
-      </h3>
-      <p className="text-sm text-muted-foreground">
-        {prova?.estado === "conferindo" && "Conferindo se a chave tem crédito…"}
-        {prova?.estado === "ok" && "Testei agora: a chave respondeu e tem crédito."}
-        {prova?.estado === "problema" && (
-          <>
-            A chave foi aceita, mas o teste não passou:{" "}
-            <span className="text-amber-700 dark:text-amber-500">{prova.mensagem}</span>. Se for
-            falta de crédito, adicione saldo na conta da empresa de IA — sem isso ele não responde
-            a nenhum cliente.
-          </>
-        )}
-        {prova?.estado === "nao_deu" &&
-          "Não consegui testar o crédito agora. Dá para seguir — mas confira o saldo na conta da empresa de IA antes de confiar nele."}
-        {prova === null && "Pronta para uso."}
-      </p>
+    <section className="rounded-lg border bg-card p-5 text-card-foreground shadow-sm">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Cpu className="h-5 w-5 text-primary" />
+            <h3 className="text-base font-semibold leading-none tracking-tight">
+              O cérebro dele
+            </h3>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium">
+                {chave.rotulo || chave.provedor}
+              </span>
+              {chave.final ? (
+                <span className="text-xs text-muted-foreground">(final {chave.final})</span>
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>
+                modelo: <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">{chave.modelo || "padrão"}</code>
+              </span>
+              <span>•</span>
+              <Badge variant={chave.origem === "org" ? "default" : "secondary"} className="text-[10px] font-normal">
+                {chave.origem === "org" ? "Usando chave desta empresa" : "Usando chave da instalação"}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 pt-1 text-xs">
+            {prova?.estado === "conferindo" && (
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                Conferindo se a chave tem crédito…
+              </span>
+            )}
+            {(prova?.estado === "ok" || prova === null) && (
+              <span className="flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                ✓ conexão funcionando
+              </span>
+            )}
+            {prova?.estado === "problema" && (
+              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                <AlertCircle className="h-3.5 w-3.5" />
+                Aviso: {prova.mensagem}
+              </span>
+            )}
+            {prova?.estado === "nao_deu" && (
+              <span className="text-muted-foreground">
+                Não foi possível testar o crédito agora.
+              </span>
+            )}
+          </div>
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setDialogOpen(true)}
+          className="self-start"
+        >
+          Trocar cérebro
+        </Button>
+      </div>
+
+      <TrocarCerebroDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        currentProvider={chave.provedor}
+        currentModel={chave.modelo}
+        currentOrigem={chave.origem}
+        provedores={provedores}
+        modelos={modelos}
+        chavesDeInstalacao={chavesDeInstalacao}
+        chavesDaOrg={chavesDaOrg}
+        onSuccess={(resultado) => {
+          setChave({
+            origem: resultado.origem,
+            provedor: resultado.provedor,
+            modelo: resultado.modelo,
+            rotulo: resultado.rotulo,
+            final: resultado.final,
+          });
+          setProva({ estado: "conferindo" });
+          setTimeout(() => {
+            void conferirConexao();
+          }, 1000);
+        }}
+      />
     </section>
   );
 }

@@ -341,6 +341,10 @@ export async function resolveOrgLlmConfig(
     apiKey = cfg.openaiApiKey;
   } else if (provider === 'openrouter' && cfg.openrouterApiKey) {
     apiKey = cfg.openrouterApiKey;
+  } else if (provider === 'opencode_zen' && cfg.opencodeZenApiKey) {
+    apiKey = cfg.opencodeZenApiKey;
+  } else if (provider === 'deepseek' && cfg.deepseekApiKey) {
+    apiKey = cfg.deepseekApiKey;
   } else {
     throw new LlmNotConfiguredError();
   }

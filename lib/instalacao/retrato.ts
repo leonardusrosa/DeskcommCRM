@@ -36,10 +36,20 @@ export interface RetratoDaInstalacao {
 }
 
 /** O provedor que a instalação escolheu — mesma leitura defensiva do runtime. */
-export function provedorDaOrg(settings: unknown): string {
+export function provedorPadraoDaInstalacao(ambiente?: FonteDeAmbiente): string {
+  const env = lerAmbiente(ambiente);
+  if (env.chavesDeProvedor["opencode_zen"]) return "opencode_zen";
+  if (env.chavesDeProvedor["openrouter"]) return "openrouter";
+  if (env.chavesDeProvedor["anthropic"]) return "anthropic";
+  if (env.chavesDeProvedor["openai"]) return "openai";
+  if (env.chavesDeProvedor["deepseek"]) return "deepseek";
+  return "anthropic";
+}
+
+export function provedorDaOrg(settings: unknown, ambiente?: FonteDeAmbiente): string {
   const llm = (settings as { llm?: unknown } | null)?.llm;
   const p = (llm as { provider?: unknown } | null | undefined)?.provider;
-  return typeof p === "string" && p.trim() !== "" ? p : "anthropic";
+  return typeof p === "string" && p.trim() !== "" ? p : provedorPadraoDaInstalacao(ambiente);
 }
 
 export interface DependenciasDoRetrato {
@@ -67,7 +77,7 @@ export async function lerRetratoDaInstalacao(
     .eq("id", orgId)
     .maybeSingle();
 
-  const provider = provedorDaOrg(orgRow?.settings);
+  const provider = provedorDaOrg(orgRow?.settings, deps.ambiente);
 
   // Credencial cadastrada pela tela vence a chave da instalação — mesma
   // precedência que `resolveOrgLlmConfig` aplica no turno.
@@ -97,7 +107,10 @@ export async function lerRetratoDaInstalacao(
   const emVerificacao =
     !credencial && (credenciais ?? []).some((c) => c.validated_at === null);
 
-  const { data: modelo } = await supabase
+  const llmSettings = (orgRow?.settings as { llm?: { default_model?: string } } | null)?.llm;
+  const modeloEscolhido = llmSettings?.default_model;
+
+  const { data: modeloDefault } = await supabase
     .from("ai_models")
     .select("model_id")
     .eq("provider", provider)
@@ -105,6 +118,21 @@ export async function lerRetratoDaInstalacao(
     .is("deprecated_at", null)
     .limit(1)
     .maybeSingle();
+
+  const { data: primeiroModelo } = await supabase
+    .from("ai_models")
+    .select("model_id")
+    .eq("provider", provider)
+    .is("deprecated_at", null)
+    .order("model_id", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  const modeloCurado =
+    modeloEscolhido ||
+    (modeloDefault?.model_id as string | undefined) ||
+    (primeiroModelo?.model_id as string | undefined) ||
+    null;
 
   const { data: funil } = await supabase
     .from("crm_pipelines")
@@ -120,7 +148,7 @@ export async function lerRetratoDaInstalacao(
       ? "instalacao"
       : "nenhuma";
 
-  const modeloCurado = (modelo?.model_id as string | undefined) ?? null;
+
 
   return {
     empresa: {
