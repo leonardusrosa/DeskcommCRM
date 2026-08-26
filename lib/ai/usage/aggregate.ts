@@ -1,9 +1,9 @@
 /**
  * Pure aggregator for the AI usage observability dashboard.
  *
- * Receives raw `ai_invocations` rows + per-day inbound/handoff counts and
- * returns the payload consumed by `/api/v1/ai/usage`. Kept side-effect free
- * to make it easy to unit test.
+ * `cost_cents = null` significa custo DESCONHECIDO, não grátis. O agregador
+ * soma apenas custos conhecidos e carrega junto um sinal de completude para a
+ * UI não transformar lacuna de preço em "US$ 0".
  */
 
 export interface InvocationRow {
@@ -19,7 +19,11 @@ export interface InvocationRow {
 export interface UsagePayload {
   range: { from: string; to: string };
   totals: {
+    /** Soma dos custos CONHECIDOS. Veja `cost_is_complete`. */
     cost_cents: number;
+    /** false quando houve chamada com tokens mas sem preço/custo conhecido. */
+    cost_is_complete: boolean;
+    unknown_cost_calls: number;
     total_tokens: number;
     invocations: number;
     p50_latency_ms: number;
@@ -65,6 +69,11 @@ function tokensOf(row: InvocationRow): number {
   return (row.prompt_tokens ?? 0) + (row.completion_tokens ?? 0);
 }
 
+function custoDesconhecido(row: InvocationRow): boolean {
+  if (row.cost_cents != null) return false;
+  return (row.prompt_tokens ?? 0) > 0 || (row.completion_tokens ?? 0) > 0;
+}
+
 export function aggregateUsage(
   rows: InvocationRow[],
   dailyInbounds: Map<string, number>,
@@ -73,7 +82,6 @@ export function aggregateUsage(
 ): UsagePayload {
   const days = daysBetween(range.from, range.to);
 
-  // Per-day buckets.
   const buckets = new Map<
     string,
     { cost: number; tokens: number; latencies: number[]; count: number }
@@ -85,15 +93,19 @@ export function aggregateUsage(
   const byKind: Record<string, number> = {};
   let totalCost = 0;
   let totalTokens = 0;
+  let unknownCostCalls = 0;
   const allLatencies: number[] = [];
 
   for (const row of rows) {
     const day = row.created_at.slice(0, 10);
     const bucket = buckets.get(day);
-    if (!bucket) continue; // outside range — skip defensively
+    if (!bucket) continue;
+
     const cost = row.cost_cents ?? 0;
     const tokens = tokensOf(row);
     const latency = row.latency_ms ?? 0;
+
+    if (custoDesconhecido(row)) unknownCostCalls += 1;
 
     bucket.cost += cost;
     bucket.tokens += tokens;
@@ -154,6 +166,8 @@ export function aggregateUsage(
     },
     totals: {
       cost_cents: totalCost,
+      cost_is_complete: unknownCostCalls === 0,
+      unknown_cost_calls: unknownCostCalls,
       total_tokens: totalTokens,
       invocations: totalInvocations,
       p50_latency_ms: p50All,
