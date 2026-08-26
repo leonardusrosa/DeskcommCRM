@@ -50,6 +50,10 @@ import {
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  sincronizarCatalogoZen,
+  buscarDoOpenCodeZen,
+} from "@/lib/ai/catalogo/opencode-zen";
 
 export const dynamic = "force-dynamic";
 
@@ -138,7 +142,19 @@ async function handler(req: NextRequest): Promise<Response> {
     return fail("unauthorized", "cron secret ausente ou inválido", 401, { requestId });
   }
   try {
-    const resultado = await sincronizarCatalogo(createAdminClient(), buscarDaOpenRouter);
+    const admin = createAdminClient();
+    const resultadoOpenRouter = await sincronizarCatalogo(admin, buscarDaOpenRouter).catch((err) => {
+      logger.warn("[sync-model-catalog] openrouter falhou ou indisponível", { error: String(err) });
+      return null;
+    });
+    const resultadoZen = await sincronizarCatalogoZen(admin, () => buscarDoOpenCodeZen()).catch((err) => {
+      logger.warn("[sync-model-catalog] opencode_zen falhou", { error: String(err) });
+      return null;
+    });
+    const resultado = {
+      openrouter: resultadoOpenRouter,
+      opencode_zen: resultadoZen,
+    };
     logger.info("[sync-model-catalog] concluído", { ...resultado, request_id: requestId });
     return ok(resultado, { requestId });
   } catch (err) {

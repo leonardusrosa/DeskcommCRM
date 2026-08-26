@@ -120,6 +120,48 @@ export async function validateGoogleKey(apiKey: string): Promise<ValidationResul
  * "esta chave é aceita?" — e já devolve a lista de modelos que a interface usa,
  * do mesmo jeito que os três irmãos acima.
  */
+export async function validateDeepSeekKey(apiKey: string): Promise<ValidationResult> {
+  try {
+    const res = await timedFetch("https://api.deepseek.com/models", {
+      method: "GET",
+      headers: { Authorization: "Bearer " + apiKey },
+    });
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, error: "auth_failed_401" };
+    }
+    if (!res.ok) {
+      return { ok: false, error: "provider_status_" + res.status };
+    }
+    const json = (await res.json()) as { data?: { id?: string }[] };
+    const apiModels = (json.data ?? []).map((m) => m.id ?? "").filter(Boolean);
+    const standard = ["deepseek-v4-flash", "deepseek-v4-pro"];
+    const models = Array.from(new Set([...apiModels, ...standard]));
+    return { ok: true, models };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.name : "network_error" };
+  }
+}
+
+export async function validateOpenCodeZenKey(apiKey: string): Promise<ValidationResult> {
+  try {
+    const res = await timedFetch("https://opencode.ai/zen/v1/models", {
+      method: "GET",
+      headers: { Authorization: "Bearer " + apiKey, "User-Agent": "DeskcommCRM/1.0" },
+    });
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, error: "auth_failed_401" };
+    }
+    if (!res.ok) {
+      return { ok: false, error: "provider_status_" + res.status };
+    }
+    const json = (await res.json()) as { data?: { id?: string }[] };
+    const models = (json.data ?? []).map((m) => m.id ?? "").filter(Boolean);
+    return { ok: true, models };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.name : "network_error" };
+  }
+}
+
 export async function validateOpenRouterKey(apiKey: string): Promise<ValidationResult> {
   try {
     const res = await timedFetch("https://openrouter.ai/api/v1/models", {
@@ -153,6 +195,10 @@ export function validateProviderKey(
       return validateGoogleKey(apiKey);
     case "openrouter":
       return validateOpenRouterKey(apiKey);
+    case "opencode_zen":
+      return validateOpenCodeZenKey(apiKey);
+    case "deepseek":
+      return validateDeepSeekKey(apiKey);
     default: {
       // Sem `never` aqui: `Provider` agora é derivado de PROVEDORES, e a lista
       // cresce sem que este arquivo saiba. Provedor novo cadastrado antes de

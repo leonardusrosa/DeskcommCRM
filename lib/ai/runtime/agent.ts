@@ -153,9 +153,14 @@ function buildSentinelRegex(keywords: string[]): RegExp | null {
  * lá não existe faria o ensaio passar e a mensagem real falhar.
  */
 export function chaveDePlataforma(provider: string): string | null {
-  const nome = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", openrouter: "OPENROUTER_API_KEY" }[
-    provider
-  ];
+  const map: Record<string, string> = {
+    anthropic: "ANTHROPIC_API_KEY",
+    openai: "OPENAI_API_KEY",
+    openrouter: "OPENROUTER_API_KEY",
+    opencode_zen: "OPENCODE_ZEN_API_KEY",
+    deepseek: "DEEPSEEK_API_KEY",
+  };
+  const nome = map[provider];
   if (!nome) return null;
   const v = (process.env[nome] ?? "").trim();
   return v === "" ? null : v;
@@ -169,17 +174,29 @@ export function buildModel(provider: string, apiKey: string, modelId: string): L
       return createOpenAI({ apiKey })(modelId);
     case "google":
       return createGoogleGenerativeAI({ apiKey })(modelId);
-    // O ensaio precisa alcançar o mesmo provedor que o turno real alcança.
-    // Sem este caso, o dono que instalou pela opção [1] do instalador publica
-    // o agente, clica em "Teste" para conferir antes de confiar, e recebe
-    // `unsupported_provider` — enquanto a mensagem de verdade seria respondida
-    // normalmente pelo worker. Erro no ensaio lê-se como produto quebrado.
     case "openrouter":
       return createOpenAI({
         apiKey,
         baseURL: OPENROUTER_ENDPOINT,
         headers: cabecalhosDeAtribuicaoOpenRouter(),
       })(modelId);
+    case "opencode_zen": {
+      const zenModel = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
+      const isGpt = zenModel.startsWith("gpt-");
+      const openai = createOpenAI({
+        apiKey,
+        baseURL: process.env.OPENCODE_ZEN_BASE_URL || "https://opencode.ai/zen/v1",
+        headers: { "User-Agent": "DeskcommCRM/1.0" },
+      });
+      return isGpt ? openai(zenModel) : openai.chat(zenModel);
+    }
+    case "deepseek": {
+      const model = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
+      return createOpenAI({
+        apiKey,
+        baseURL: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com",
+      })(model);
+    }
     default:
       throw new Error(`unsupported_provider: ${provider}`);
   }

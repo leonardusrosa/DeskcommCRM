@@ -20,6 +20,7 @@ const PROVIDER_DEFAULT: Record<string, ModelCapabilities> = {
   anthropic: NATIVE,
   openai: NATIVE,
   google: NATIVE,
+  deepseek: { image: false, pdf: false },
 };
 
 /**
@@ -34,7 +35,7 @@ const PROVIDER_DEFAULT: Record<string, ModelCapabilities> = {
  *
  * O id do modelo carrega o fabricante no prefixo, e é dele que a capacidade sai.
  */
-const ROTEADORES = new Set(["openrouter"]);
+const ROTEADORES = new Set(["openrouter", "opencode_zen"]);
 
 // Substrings de modelos que NÃO são de chat multimodal (embeddings, TTS, etc.)
 // — rebaixam mesmo num provider capaz. Deny-list explícita e pequena.

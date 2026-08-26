@@ -30,7 +30,7 @@ import { decryptKey, byteaToBuffer } from "@/lib/crypto/aes_gcm";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-import { OPENROUTER_BASE_URL, resolveLanguageModel, type ModelId } from "./gateway";
+import { OPENROUTER_BASE_URL, OPENCODE_ZEN_BASE_URL, DEEPSEEK_BASE_URL, resolveLanguageModel, type ModelId } from "./gateway";
 
 export interface ModeloResolvido {
   model: LanguageModel;
@@ -174,6 +174,23 @@ function instanciar(
       return createGoogleGenerativeAI({ apiKey })(modelId);
     case "openrouter":
       return createOpenAI({ apiKey, baseURL: baseUrl ?? OPENROUTER_BASE_URL })(modelId);
+    case "opencode_zen": {
+      const zenModel = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
+      const isGpt = zenModel.startsWith("gpt-");
+      const openai = createOpenAI({
+        apiKey,
+        baseURL: baseUrl ?? OPENCODE_ZEN_BASE_URL,
+        headers: { "User-Agent": "DeskcommCRM/1.0" },
+      });
+      return isGpt ? openai(zenModel) : openai.chat(zenModel);
+    }
+    case "deepseek": {
+      const model = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
+      return createOpenAI({
+        apiKey,
+        baseURL: baseUrl ?? DEEPSEEK_BASE_URL,
+      })(model);
+    }
     default:
       return null;
   }

@@ -35,6 +35,9 @@ export interface ClassifierModelOption {
 export interface PlatformKeys {
   anthropic: boolean;
   openai: boolean;
+  openrouter?: boolean;
+  opencode_zen?: boolean;
+  deepseek?: boolean;
 }
 
 export async function listClassifierModels(
@@ -62,6 +65,15 @@ export async function listClassifierModels(
   }
   if (platformKeys.openai && !origemPorProvider.has("openai")) {
     origemPorProvider.set("openai", "plataforma");
+  }
+  if (platformKeys.openrouter && !origemPorProvider.has("openrouter")) {
+    origemPorProvider.set("openrouter", "plataforma");
+  }
+  if (platformKeys.opencode_zen && !origemPorProvider.has("opencode_zen")) {
+    origemPorProvider.set("opencode_zen", "plataforma");
+  }
+  if (platformKeys.deepseek && !origemPorProvider.has("deepseek")) {
+    origemPorProvider.set("deepseek", "plataforma");
   }
   if (origemPorProvider.size === 0) return [];
 

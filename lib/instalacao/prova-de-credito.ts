@@ -22,6 +22,8 @@ import { normalizarErro } from "@/lib/agent-engine/edge/llm/run-model-call";
 import {
   cabecalhosDeAtribuicaoOpenRouter,
   OPENROUTER_ENDPOINT,
+  OPENCODE_ZEN_ENDPOINT,
+  DEEPSEEK_ENDPOINT,
 } from "@/lib/agent-engine/edge/llm/providers";
 
 export type ResultadoDaProva =
@@ -93,6 +95,25 @@ export function montarRequisicaoDeProva(
           contents: [{ parts: [{ text: "oi" }] }],
           generationConfig: { maxOutputTokens: 1 },
         },
+      };
+        case "opencode_zen":
+      return {
+        url: `${baseUrl ?? OPENCODE_ZEN_ENDPOINT}/chat/completions`,
+        headers: {
+          authorization: `Bearer ${apiKey}`,
+          "content-type": "application/json",
+          "user-agent": "DeskcommCRM/1.0",
+        },
+        body: { model: modelo, max_tokens: 1, messages: msg },
+      };
+    case "deepseek":
+      return {
+        url: `${baseUrl ?? DEEPSEEK_ENDPOINT}/chat/completions`,
+        headers: {
+          authorization: `Bearer ${apiKey}`,
+          "content-type": "application/json",
+        },
+        body: { model: modelo, max_tokens: 1, messages: msg },
       };
     default:
       // Fail-closed: provedor que este módulo não sabe cobrar não recebe um

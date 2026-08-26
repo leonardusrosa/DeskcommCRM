@@ -20,6 +20,8 @@ import { env } from "@/lib/env";
 /** Endpoint da OpenRouter. Compatível com a API da OpenAI, então o provider
  *  `@ai-sdk/openai` fala com ela sem dependência nova. */
 export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+export const OPENCODE_ZEN_BASE_URL = "https://opencode.ai/zen/v1";
+export const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 
 export type ModelId =
   | "anthropic/claude-sonnet-5"
@@ -36,6 +38,8 @@ export const DEFAULT_EMBEDDING_MODEL: ModelId = "openai/text-embedding-3-small";
 export function isAiGatewayConfigured(): boolean {
   return (
     Boolean(env.AI_GATEWAY_API_KEY) ||
+    Boolean(env.OPENCODE_ZEN_API_KEY) ||
+    Boolean(env.DEEPSEEK_API_KEY) ||
     Boolean(env.OPENROUTER_API_KEY) ||
     Boolean(env.ANTHROPIC_API_KEY)
   );
@@ -70,6 +74,31 @@ export function resolveLanguageModel(model: ModelId): LanguageModel | null {
   const id = String(model);
 
   if (gatewayConfig()) return id as LanguageModel;
+
+  if (id.startsWith("deepseek/") && env.DEEPSEEK_API_KEY) {
+    return createOpenAI({
+      apiKey: env.DEEPSEEK_API_KEY,
+      baseURL: env.DEEPSEEK_BASE_URL || DEEPSEEK_BASE_URL,
+    })(id.slice("deepseek/".length));
+  }
+
+  if (env.DEEPSEEK_API_KEY && (id.startsWith("deepseek") || !id.includes("/"))) {
+    return createOpenAI({
+      apiKey: env.DEEPSEEK_API_KEY,
+      baseURL: env.DEEPSEEK_BASE_URL || DEEPSEEK_BASE_URL,
+    })(id);
+  }
+
+  if (env.OPENCODE_ZEN_API_KEY) {
+    const zenModel = id.includes("/") ? id.split("/").pop()! : id;
+    const isGpt = zenModel.startsWith("gpt-");
+    const openai = createOpenAI({
+      apiKey: env.OPENCODE_ZEN_API_KEY,
+      baseURL: env.OPENCODE_ZEN_BASE_URL || OPENCODE_ZEN_BASE_URL,
+      headers: { "User-Agent": "DeskcommCRM/1.0" },
+    });
+    return isGpt ? openai(zenModel) : openai.chat(zenModel);
+  }
 
   if (env.OPENROUTER_API_KEY) {
     return createOpenAI({

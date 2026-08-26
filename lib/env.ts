@@ -155,6 +155,10 @@ const schema = z.object({
   // `cabecalhosDeAtribuicaoOpenRouter()`, em edge/llm/providers.ts.
   OPENROUTER_APP_URL: z.string().optional().default(""),
   OPENROUTER_APP_TITLE: z.string().optional().default(""),
+  OPENCODE_ZEN_API_KEY: z.string().optional().default(""),
+  OPENCODE_ZEN_BASE_URL: z.string().optional().default("https://opencode.ai/zen/v1"),
+  DEEPSEEK_API_KEY: z.string().optional().default(""),
+  DEEPSEEK_BASE_URL: z.string().optional().default("https://api.deepseek.com"),
   VERCEL_AI_GATEWAY_URL: z.string().optional().default(""),
   ANTHROPIC_API_KEY: z.string().optional().default(""),
   OPENAI_API_KEY: z.string().optional().default(""),
@@ -337,7 +341,7 @@ export const env = parsed.data;
 // cadastrava uma chave da Anthropic que não precisava, só para calar o aviso.
 // O texto era verdadeiro enquanto a Anthropic era a única chave que o
 // instalador pedia; o menu novo o tornou falso.
-if (!env.AI_GATEWAY_API_KEY && !env.ANTHROPIC_API_KEY && !env.OPENROUTER_API_KEY) {
+if (!env.AI_GATEWAY_API_KEY && !env.ANTHROPIC_API_KEY && !env.OPENROUTER_API_KEY && !env.OPENCODE_ZEN_API_KEY && !env.DEEPSEEK_API_KEY) {
   console.warn(
     "[env] Nenhuma chave de IA configurada (AI_GATEWAY_API_KEY, ANTHROPIC_API_KEY ou OPENROUTER_API_KEY) — " +
       "o agente vai pular toda resposta com reason='ai_gateway_key_missing'.",

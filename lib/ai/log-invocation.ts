@@ -159,6 +159,8 @@ export function providerDoModelo(model: string): string {
   if (m.startsWith("anthropic/") || m.startsWith("claude")) return "anthropic";
   if (m.startsWith("openai/") || m.startsWith("gpt") || m.startsWith("text-embedding")) return "openai";
   if (m.startsWith("google/") || m.startsWith("gemini")) return "google";
+  if (m.startsWith("deepseek/") || m.startsWith("deepseek")) return "deepseek";
+  if (m.startsWith("opencode_zen/") || m.startsWith("zen/") || m.startsWith("mimo") || m.startsWith("nemotron")) return "opencode_zen";
   if (m.includes("/")) return "openrouter";
   return "desconhecido";
 }

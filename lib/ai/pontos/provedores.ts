@@ -77,6 +77,24 @@ export const PROVEDORES = [
     catalogoSincronizavel: true,
     ondePegarAChave: "https://openrouter.ai/keys",
   },
+  {
+    id: "opencode_zen",
+    rotulo: "OpenCode Zen",
+    quandoUsar:
+      "Acesso direto a modelos de alto desempenho (Claude, Gemini, GPT e modelos abertos) através do gateway OpenCode Zen.",
+    aceitaEndpointProprio: true,
+    catalogoSincronizavel: true,
+    ondePegarAChave: "https://opencode.ai/zen",
+  },
+  {
+    id: "deepseek",
+    rotulo: "DeepSeek",
+    quandoUsar:
+      "Modelos de alta capacidade e raciocínio com custo altamente eficiente e suporte nativo a chamadas de ferramentas.",
+    aceitaEndpointProprio: true,
+    catalogoSincronizavel: false,
+    ondePegarAChave: "https://platform.deepseek.com/api_keys",
+  },
 ] as const satisfies readonly ProvedorSuportado[];
 // `as const satisfies` e não anotação de tipo: a anotação apagaria os literais
 // e `Provider` viraria `string`, deixando o compilador aceitar qualquer texto

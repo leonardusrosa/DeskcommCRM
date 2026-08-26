@@ -42,6 +42,8 @@ const GOOGLE_ENDPOINT = 'https://generativelanguage.googleapis.com';
  * `familia/modelo`, o mesmo dos nossos, sem tradução no meio.
  */
 export const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1';
+export const OPENCODE_ZEN_ENDPOINT = 'https://opencode.ai/zen/v1';
+export const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com';
 
 /**
  * Cabeçalhos OPCIONAIS de atribuição da OpenRouter.
@@ -111,6 +113,27 @@ export function createDefaultRegistry(opts?: { allowedHosts?: string[] }): Provi
         headers: cabecalhosDeAtribuicaoOpenRouter(),
         fetch: contain(endpoint),
       })(modelId);
+    },
+    opencode_zen: (apiKey, modelId, baseUrl) => {
+      const endpoint = baseUrl ?? OPENCODE_ZEN_ENDPOINT;
+      const zenModel = modelId.includes('/') ? modelId.split('/').pop()! : modelId;
+      const isGpt = zenModel.startsWith('gpt-');
+      const openai = createOpenAI({
+        apiKey,
+        baseURL: endpoint,
+        headers: { 'User-Agent': 'DeskcommCRM/1.0' },
+        fetch: contain(endpoint),
+      });
+      return isGpt ? openai(zenModel) : openai.chat(zenModel);
+    },
+    deepseek: (apiKey, modelId, baseUrl) => {
+      const endpoint = baseUrl ?? DEEPSEEK_ENDPOINT;
+      const model = modelId.includes('/') ? modelId.split('/').pop()! : modelId;
+      return createOpenAI({
+        apiKey,
+        baseURL: endpoint,
+        fetch: contain(endpoint),
+      })(model);
     },
   };
 }
