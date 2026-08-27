@@ -1,9 +1,9 @@
 /**
  * Cost computation for AI invocations.
  *
- * Looks up `ai_pricing` (rarely changing global table) and converts token
- * usage to cost in *cents* (rounded up to integer to err on the side of
- * over-billing rather than free usage).
+ * Looks up `ai_pricing` (rarely changing global table) or `ai_models` catalog
+ * and converts token usage to cost in *cents*, preserving decimal precision
+ * (no premature Math.ceil rounding).
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -105,7 +105,7 @@ async function precoDoCatalogo(
 }
 
 /**
- * Returns cost in **cents**, rounded up. Zero when pricing missing.
+ * Returns cost in **cents**, preserving fractional precision. Zero when pricing missing.
  */
 export async function computeCost(input: ComputeCostInput): Promise<number> {
   const pricing = await loadPricing();
@@ -119,7 +119,7 @@ export async function computeCost(input: ComputeCostInput): Promise<number> {
     const cents =
       ((input.promptTokens ?? 0) * doCatalogo.prompt) / 1_000_000 +
       ((input.completionTokens ?? 0) * doCatalogo.completion) / 1_000_000;
-    return Math.ceil(cents);
+    return cents;
   }
 
   const promptRate = toNumber(row.prompt_cents_per_million_tokens);
@@ -135,7 +135,7 @@ export async function computeCost(input: ComputeCostInput): Promise<number> {
     (completionTokens * completionRate) / 1_000_000 +
     (embeddingTokens * embeddingRate) / 1_000_000;
 
-  return Math.ceil(cents);
+  return cents;
 }
 
 /** Test-only: drop the in-memory pricing cache. */
