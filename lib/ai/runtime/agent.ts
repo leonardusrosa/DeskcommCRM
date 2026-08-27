@@ -1,3 +1,4 @@
+import { buildAgentSystemContext, type BusinessProfile } from "@/lib/ai/context/business-context";
 import { montarOpcoesDeRaciocinio } from "@/lib/ai/raciocinio/adapter";
 /**
  * @deprecated Fase 0 da convergência (spec 2026-07-23): fora do caminho quente.
@@ -289,6 +290,21 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       return await failRun(run, "version_not_found", "agent version missing", startedAt);
     }
 
+    // Load organization facts for canonical business profile injection.
+    const { data: orgRow } = await admin
+      .from("organizations")
+      .select("display_name, timezone, settings, onboarding_state")
+      .eq("id", run.organization_id)
+      .maybeSingle();
+
+    const system = buildAgentSystemContext({
+      displayName: orgRow?.display_name,
+      timezone: orgRow?.timezone,
+      businessProfile: (orgRow?.settings as { business_profile?: BusinessProfile } | null)?.business_profile,
+      onboardingOQueFaz: (orgRow?.onboarding_state as { welcome?: { o_que_faz?: string } } | null)?.welcome?.o_que_faz,
+      agentInstructions: version.system_prompt,
+    });
+
     const { data: agentRaw } = await admin
       .from("ai_agents")
       .select("id, organization_id, created_by")
@@ -536,7 +552,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
 
     const result = await generateText({
       model,
-      system: version.system_prompt,
+      system,
       messages,
       tools,
       stopWhen: [stepCountIs(version.max_steps), budgetGuard],

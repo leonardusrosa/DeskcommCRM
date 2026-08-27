@@ -13706,6 +13706,21 @@ alter table public.ai_agent_runs
 alter table public.ai_agent_versions
   alter column split_messages set default true;
 
+-- ---- migração de o_que_faz do onboarding para settings.business_profile.description (migration 0179) ----
+update public.organizations
+set settings = coalesce(settings, '{}'::jsonb) || jsonb_build_object(
+  'business_profile',
+  coalesce(settings->'business_profile', '{}'::jsonb) || jsonb_build_object(
+    'description', trim(onboarding_state->'welcome'->>'o_que_faz')
+  )
+)
+where (onboarding_state->'welcome'->>'o_que_faz') is not null
+  and trim(onboarding_state->'welcome'->>'o_que_faz') <> ''
+  and (
+    settings->'business_profile'->>'description' is null
+    or trim(settings->'business_profile'->>'description') = ''
+  );
+
 notify pgrst, 'reload schema';
 
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----

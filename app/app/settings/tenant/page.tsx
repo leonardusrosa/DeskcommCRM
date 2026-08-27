@@ -17,6 +17,7 @@ interface OrgRow {
   dpo_email: string | null;
   privacy_policy_url: string | null;
   settings: Record<string, unknown> | null;
+  onboarding_state: Record<string, unknown> | null;
 }
 
 export default async function TenantSettingsPage() {
@@ -31,7 +32,7 @@ export default async function TenantSettingsPage() {
   const { data } = await supabase
     .from("organizations")
     .select(
-      "display_name, legal_name, cnpj, timezone, locale, media_retention_days, dpo_email, privacy_policy_url, settings",
+      "display_name, legal_name, cnpj, timezone, locale, media_retention_days, dpo_email, privacy_policy_url, settings, onboarding_state",
     )
     .eq("id", activeOrg.orgId)
     .maybeSingle();
@@ -64,6 +65,10 @@ export default async function TenantSettingsPage() {
             dpo_email: row.dpo_email,
             privacy_policy_url: row.privacy_policy_url,
             lost_reasons_extra: lostReasonsExtra,
+            business_profile_description:
+              (row.settings?.business_profile as { description?: string } | null)?.description ??
+              (row.onboarding_state?.welcome as { o_que_faz?: string } | null)?.o_que_faz ??
+              null,
           }}
         />
       )}

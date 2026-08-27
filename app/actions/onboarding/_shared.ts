@@ -68,14 +68,35 @@ export async function loadOnboardingState(orgId: string): Promise<{
 export async function patchOnboardingState(
   orgId: string,
   patch: Partial<OnboardingState>,
-  extra?: { display_name?: string; timezone?: string },
+  extra?: { display_name?: string; timezone?: string; business_profile_description?: string },
 ): Promise<void> {
   const admin = createAdminClient();
-  const { state } = await loadOnboardingState(orgId);
+  const { data, error: readErr } = await admin
+    .from("organizations")
+    .select("onboarding_state, settings")
+    .eq("id", orgId)
+    .maybeSingle();
+  if (readErr) throw new OnboardingError("db_error", readErr.message);
+  if (!data) throw new OnboardingError("not_found", "Organização não encontrada.");
+
+  const state = (data.onboarding_state as OnboardingState | null) ?? {};
   const merged: OnboardingState = { ...state, ...patch };
   const update: Record<string, unknown> = { onboarding_state: merged };
   if (extra?.display_name) update.display_name = extra.display_name;
   if (extra?.timezone) update.timezone = extra.timezone;
+
+  if (extra?.business_profile_description !== undefined) {
+    const currentSettings = (data.settings as Record<string, unknown> | null) ?? {};
+    const currentBusinessProfile = (currentSettings.business_profile as Record<string, unknown> | null) ?? {};
+    update.settings = {
+      ...currentSettings,
+      business_profile: {
+        ...currentBusinessProfile,
+        description: extra.business_profile_description ? extra.business_profile_description.trim() : null,
+      },
+    };
+  }
+
   const { error } = await admin.from("organizations").update(update).eq("id", orgId);
   if (error) throw new OnboardingError("db_error", error.message);
 }

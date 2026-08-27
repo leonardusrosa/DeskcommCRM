@@ -53,7 +53,11 @@ export async function acceptWelcome(formData: FormData): Promise<AcceptWelcomeRe
           ...(input.o_que_faz ? { o_que_faz: input.o_que_faz } : {}),
         },
       },
-      { display_name: input.display_name, timezone: input.timezone },
+      {
+        display_name: input.display_name,
+        timezone: input.timezone,
+        business_profile_description: input.o_que_faz,
+      },
     );
   } catch (err) {
     if (err instanceof OnboardingError) return { ok: false, error: "db_error", details: err.message };
