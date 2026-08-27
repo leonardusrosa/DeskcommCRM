@@ -291,17 +291,26 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     }
 
     // Load organization facts for canonical business profile injection.
-    const { data: orgRow } = await admin
+    const { data: orgRow, error: orgErr } = await admin
       .from("organizations")
       .select("display_name, timezone, settings, onboarding_state")
       .eq("id", run.organization_id)
       .maybeSingle();
 
+    if (orgErr || !orgRow) {
+      return await failRun(
+        run,
+        "org_not_found",
+        `organization load failed: ${orgErr?.message ?? "missing organization"}`,
+        startedAt,
+      );
+    }
+
     const system = buildAgentSystemContext({
-      displayName: orgRow?.display_name,
-      timezone: orgRow?.timezone,
-      businessProfile: (orgRow?.settings as { business_profile?: BusinessProfile } | null)?.business_profile,
-      onboardingOQueFaz: (orgRow?.onboarding_state as { welcome?: { o_que_faz?: string } } | null)?.welcome?.o_que_faz,
+      displayName: orgRow.display_name,
+      timezone: orgRow.timezone,
+      businessProfile: (orgRow.settings as { business_profile?: BusinessProfile } | null)?.business_profile,
+      onboardingOQueFaz: (orgRow.onboarding_state as { welcome?: { o_que_faz?: string } } | null)?.welcome?.o_que_faz,
       agentInstructions: version.system_prompt,
     });
 

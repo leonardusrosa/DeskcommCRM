@@ -92,9 +92,9 @@ export const tenantSchema = z.object({
   business_profile_description: z
     .string()
     .max(2000)
+    .transform((s) => s.trim() || null)
     .nullable()
-    .optional()
-    .or(z.literal("").transform(() => null)),
+    .optional(),
 });
 export type TenantInput = z.infer<typeof tenantSchema>;
 

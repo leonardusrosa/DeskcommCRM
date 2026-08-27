@@ -9,7 +9,8 @@
  * Invariantes:
  * - Fatos da organização são explicitamente rotulados como dados de referência cadastrados,
  *   mitigando que texto livre cadastrado aja como prompt injection / comando executável.
- * - Valores são sanitizados para evitar quebra/abertura de delimitadores de seção (ex: `[INSTRUÇÕES DO AGENTE]`).
+ * - Valores são normalizados (CR/LF -> espaço) e têm colchetes sanitizados para evitar
+ *   quebra de linha e quebra/abertura de delimitadores de seção (ex: `[INSTRUÇÕES DO AGENTE]`).
  * - Campos ausentes são omitidos (nunca inventa fatos ou ramos de atuação).
  * - Fallback gracioso para onboarding_state.welcome.o_que_faz caso business_profile.description
  *   ainda não tenha sido preenchido.
@@ -31,11 +32,16 @@ export interface BuildAgentSystemContextInput {
 }
 
 /**
- * Sanitiza valores de fatos da organização para evitar que fechem ou forjem
- * delimitadores estruturados de prompt como `[INSTRUÇÕES DO AGENTE]`.
+ * Sanitiza valores de fatos da organização:
+ * 1. Normaliza quebras de linha (CR/LF) para espaços, mantendo a representação em uma única linha 'Campo: valor'.
+ * 2. Neutraliza colchetes para evitar que fechem ou forjem delimitadores estruturados de prompt.
  */
 function sanitizeFactualValue(value: string): string {
-  return value.replace(/\[/g, "(").replace(/\]/g, ")").trim();
+  return value
+    .replace(/[\r\n]+/g, " ")
+    .replace(/\[/g, "(")
+    .replace(/\]/g, ")")
+    .trim();
 }
 
 /**

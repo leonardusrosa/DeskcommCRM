@@ -4,14 +4,14 @@ import { buildAgentSystemContext } from "@/lib/ai/context/business-context";
 
 describe("Regressão da Agente Ana — Grounding Factual de Contexto de Negócio", () => {
   it("garante que o prompt final fornecido à Ana contém os fatos de negócio da Autocora sem alterar seu system_prompt original", () => {
-    // Exact historical system_prompt of Ana from production ai_agent_versions
-    const anaOriginalSystemPrompt =
-      "Você é a Ana, assistente virtual da Autocora. Responda com simpatia, clareza e de forma objetiva.";
+    // Exact measured production values from incident investigation
+    const anaMeasuredSystemPrompt =
+      "Você atende os clientes de Autocora. Fale de forma objetiva, cordial e profissional. Vá direto ao ponto, sem parecer frio, e sempre termine indicando o próximo passo.";
 
     // Organization data configured canonically
     const org = {
       display_name: "Autocora",
-      timezone: "America/Sao_Paulo",
+      timezone: "UTC",
       settings: {
         business_profile: {
           description: "Automações e landing pages",
@@ -21,7 +21,7 @@ describe("Regressão da Agente Ana — Grounding Factual de Contexto de Negócio
         welcome: {
           display_name: "Autocora",
           o_que_faz: "Automações e landing pages",
-          timezone: "America/Sao_Paulo",
+          timezone: "UTC",
         },
       },
     };
@@ -31,23 +31,28 @@ describe("Regressão da Agente Ana — Grounding Factual de Contexto de Negócio
       timezone: org.timezone,
       businessProfile: org.settings.business_profile,
       onboardingOQueFaz: org.onboarding_state.welcome.o_que_faz,
-      agentInstructions: anaOriginalSystemPrompt,
+      agentInstructions: anaMeasuredSystemPrompt,
     });
 
-    // 1. O system_prompt da Ana permanece inalterado dentro da seção de instruções
-    expect(assembledSystemPrompt).toContain(anaOriginalSystemPrompt);
+    // 1. O system_prompt original da Ana permanece exatamente presente e inalterado dentro da seção de instruções
+    expect(assembledSystemPrompt).toContain(anaMeasuredSystemPrompt);
+    expect(assembledSystemPrompt.endsWith(`[INSTRUÇÕES DO AGENTE]\n${anaMeasuredSystemPrompt}`)).toBe(true);
 
-    // 2. O contexto factual da organização é injetado com alta visibilidade
+    // 2. O contexto factual da organização é injetado com alta visibilidade e dados exatos
     expect(assembledSystemPrompt).toContain("[CONTEXTO DO NEGÓCIO — DADOS DE REFERÊNCIA]");
     expect(assembledSystemPrompt).toContain("Empresa: Autocora");
     expect(assembledSystemPrompt).toContain("O que faz: Automações e landing pages");
+    expect(assembledSystemPrompt).toContain("Fuso horário: UTC");
 
     // 3. Fatos automotivos NÃO existem no prompt
     expect(assembledSystemPrompt.toLowerCase()).not.toContain("veículos");
+    expect(assembledSystemPrompt.toLowerCase()).not.toContain("veiculo");
     expect(assembledSystemPrompt.toLowerCase()).not.toContain("concessionária");
+    expect(assembledSystemPrompt.toLowerCase()).not.toContain("concessionaria");
     expect(assembledSystemPrompt.toLowerCase()).not.toContain("carros");
+    expect(assembledSystemPrompt.toLowerCase()).not.toContain("automotivo");
 
-    // 4. Se o usuário perguntar "oi oq vcs fazem?", o prompt oferece a resposta factual sem necessidade de RAG
+    // 4. Se o usuário perguntar "oi oq vcs fazem?", o prompt oferece a resposta factual diretamente sem necessidade de RAG
     expect(assembledSystemPrompt).toMatch(/O que faz:\s*Automações e landing pages/);
   });
 });
