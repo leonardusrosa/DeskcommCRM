@@ -12,6 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { formatAiCostCents } from "@/lib/money";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,7 +41,7 @@ interface TestResponse {
     tool_calls?: unknown;
     tokens_in?: number;
     tokens_out?: number;
-    cost_cents?: number;
+    cost_cents?: number | null;
     latency_ms?: number;
     would_send_to?: { session?: string | null; chat_id?: string | null };
     stub?: boolean;
@@ -276,7 +277,7 @@ export function TestPanel({ agent, draft, published, readOnly }: Props) {
                 {(result.tokens_in ?? 0).toLocaleString()} /{" "}
                 {(result.tokens_out ?? 0).toLocaleString()}
               </Cell>
-              <Cell label="Custo (cents)">{result.cost_cents ?? 0}</Cell>
+              <Cell label="Custo">{formatAiCostCents(result.cost_cents)}</Cell>
             </div>
 
             <RunTrace

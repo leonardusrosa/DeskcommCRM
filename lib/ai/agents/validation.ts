@@ -113,7 +113,7 @@ const versionShapeSchema = z
     cases_enabled: z.boolean().default(false),
     // Onda 4 — quebra a resposta em bolhas curtas (splitIntoBubbles) espaçadas
     // pelo pacing anti-ban. Defaults espelham a migration 0059.
-    split_messages: z.boolean().default(false),
+    split_messages: z.boolean().default(true),
     split_max_chars: z.number().int().min(80).max(4000).default(600),
     followup: followupConfigSchema,
     // ── Papel OPERADOR (spec 16 §3.2) ───────────────────────────────────────

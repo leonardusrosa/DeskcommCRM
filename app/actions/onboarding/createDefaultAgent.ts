@@ -253,6 +253,7 @@ async function publishFirstVersion(
       credential_id: credentialId,
       tool_ids: capacidadesPadraoDoOnboarding(),
       pipeline_ids: pipelineIds,
+      split_messages: true,
       channel_session_id: canal.id,
       status: "published",
       published_at: new Date().toISOString(),
