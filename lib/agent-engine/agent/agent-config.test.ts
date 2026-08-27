@@ -70,4 +70,21 @@ describe('loadPublishedAgentConfigById', () => {
     expect(cfg?.ragTopK).toBe(7);
     expect(cfg?.ragSimilarityThreshold).toBe(0.8);
   });
+
+  it('injeta contexto de negócio canônico da organização no systemPrompt', async () => {
+    const rowWithOrg = {
+      ...baseRow,
+      system_prompt: 'Você é um atendente prestativo.',
+      org_display_name: 'Autocora',
+      org_timezone: 'America/Sao_Paulo',
+      org_settings: { business_profile: { description: 'Automações e landing pages' } },
+    };
+    const cfg = await loadPublishedAgentConfig(poolWith(rowWithOrg), 'org1', 'cs1');
+    expect(cfg?.systemPrompt).toContain('[CONTEXTO DO NEGÓCIO — DADOS DE REFERÊNCIA]');
+    expect(cfg?.systemPrompt).toContain('Empresa: Autocora');
+    expect(cfg?.systemPrompt).toContain('O que faz: Automações e landing pages');
+    expect(cfg?.systemPrompt).toContain('Fuso horário: America/Sao_Paulo');
+    expect(cfg?.systemPrompt).toContain('[INSTRUÇÕES DO AGENTE]');
+    expect(cfg?.systemPrompt).toContain('Você é um atendente prestativo.');
+  });
 });

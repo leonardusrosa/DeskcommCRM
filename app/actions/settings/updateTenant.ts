@@ -62,9 +62,20 @@ export async function updateTenant(input: TenantInput): Promise<UpdateTenantResu
   if (readErr) return { ok: false, error: readErr.message };
 
   const currentSettings = (orgRow?.settings as Record<string, unknown> | null) ?? {};
+  const currentBusinessProfile = (currentSettings.business_profile as Record<string, unknown> | null) ?? {};
+
+  const nextBusinessProfile = { ...currentBusinessProfile };
+  if (parsed.data.business_profile_description !== undefined) {
+    nextBusinessProfile.description =
+      parsed.data.business_profile_description !== null
+        ? parsed.data.business_profile_description.trim() || null
+        : null;
+  }
+
   const nextSettings = {
     ...currentSettings,
     lost_reasons_extra: parsed.data.lost_reasons_extra,
+    business_profile: nextBusinessProfile,
   };
 
   const { error } = await supabase

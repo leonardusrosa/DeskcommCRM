@@ -150,6 +150,25 @@ export function TenantForm({ initial }: Props) {
           </div>
         </div>
 
+        <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+          <h2 className="text-sm font-semibold tracking-tight">Perfil do negócio</h2>
+          <p className="text-xs text-muted-foreground">
+            Fatos da sua empresa injetados automaticamente no contexto de todos os atendentes de IA.
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="business_profile_description">O que a empresa faz</Label>
+            <Input
+              id="business_profile_description"
+              value={form.business_profile_description ?? ""}
+              onChange={(e) => set("business_profile_description", e.target.value || null)}
+              placeholder="ex: Automações e landing pages"
+            />
+            <p className="text-xs text-muted-foreground">
+              Descreva os produtos, serviços ou ramo de atuação para evitar respostas incorretas da IA.
+            </p>
+          </div>
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="lost_reasons">Motivos de perda extras (separados por vírgula)</Label>
           <Input

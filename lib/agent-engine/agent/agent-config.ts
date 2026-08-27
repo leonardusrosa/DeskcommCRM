@@ -1,3 +1,4 @@
+import { buildAgentSystemContext, type BusinessProfile } from '@/lib/ai/context/business-context';
 /**
  * Config do agente por PONTEIRO PUBLICADO (Fase 2B da fusão) — a tela
  * app/app/ai/agents/[id] é a fonte de verdade da config do agente.
@@ -103,6 +104,10 @@ interface Row {
   trigger_config: unknown;
   version_created_by: string | null;
   agent_created_by: string | null;
+  org_display_name?: string | null;
+  org_timezone?: string | null;
+  org_settings?: Record<string, unknown> | null;
+  org_onboarding_state?: Record<string, unknown> | null;
 }
 
 const SELECT_AGENT_CONFIG_COLUMNS = `a.id as agent_id,
@@ -130,7 +135,11 @@ const SELECT_AGENT_CONFIG_COLUMNS = `a.id as agent_id,
             v.pipeline_ids,
             v.trigger_config,
             v.created_by as version_created_by,
-            a.created_by as agent_created_by`;
+            a.created_by as agent_created_by,
+            o.display_name as org_display_name,
+            o.timezone as org_timezone,
+            o.settings as org_settings,
+            o.onboarding_state as org_onboarding_state`;
 
 /** Mapeamento Row (snake_case do banco) → PublishedAgentConfig, compartilhado
  * pelas duas variantes de loader (por channel_session e por agent id). */
@@ -145,11 +154,19 @@ function mapAgentConfigRow(r: Row): PublishedAgentConfig {
       ? cfg.rag_similarity_threshold
       : 0.72;
 
+  const systemPrompt = buildAgentSystemContext({
+    displayName: r.org_display_name,
+    timezone: r.org_timezone,
+    businessProfile: (r.org_settings as { business_profile?: BusinessProfile } | null)?.business_profile,
+    onboardingOQueFaz: (r.org_onboarding_state as { welcome?: { o_que_faz?: string } } | null)?.welcome?.o_que_faz,
+    agentInstructions: r.system_prompt,
+  });
+
   return {
     agentId: r.agent_id,
     versionId: r.version_id,
     agentName: r.agent_name,
-    systemPrompt: r.system_prompt,
+    systemPrompt,
     provider: r.provider,
     model: r.model,
     credentialId: r.credential_id,
@@ -194,6 +211,7 @@ export async function loadPublishedAgentConfig(
     `select ${SELECT_AGENT_CONFIG_COLUMNS}
      from ai_agents a
      join ai_agent_versions v on v.id = a.published_version_id
+     left join organizations o on o.id = a.organization_id
      where a.organization_id = $1
        and a.archived_at is null
        -- is_active é semântica do rag_bot legado; para mcp_agent "ativo" =
@@ -225,6 +243,7 @@ export async function loadPublishedAgentConfigById(
     `select ${SELECT_AGENT_CONFIG_COLUMNS}
      from ai_agents a
      join ai_agent_versions v on v.id = a.published_version_id
+     left join organizations o on o.id = a.organization_id
      where a.organization_id = $1
        and a.archived_at is null
        and v.status = 'published'

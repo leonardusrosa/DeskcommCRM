@@ -89,6 +89,12 @@ export const tenantSchema = z.object({
     .optional()
     .or(z.literal("").transform(() => null)),
   lost_reasons_extra: z.array(z.string().min(1).max(80)).max(50).default([]),
+  business_profile_description: z
+    .string()
+    .max(2000)
+    .transform((s) => s.trim() || null)
+    .nullable()
+    .optional(),
 });
 export type TenantInput = z.infer<typeof tenantSchema>;
 
