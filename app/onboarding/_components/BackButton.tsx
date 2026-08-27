@@ -4,10 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import { hrefAnteriorOnboarding } from "@/lib/onboarding/anterior";
-import type { PassoDoOnboarding } from "@/lib/onboarding/passos";
+import {
+  hrefAnteriorOnboarding,
+  type PassoNavegavelOnboarding,
+} from "@/lib/onboarding/anterior";
 
-export function BackButton({ passos }: { passos: readonly PassoDoOnboarding[] }) {
+export function BackButton({ passos }: { passos: readonly PassoNavegavelOnboarding[] }) {
   const pathname = usePathname();
   const href = hrefAnteriorOnboarding(pathname, passos);
 

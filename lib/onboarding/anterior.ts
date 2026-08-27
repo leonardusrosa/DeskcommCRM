@@ -1,4 +1,11 @@
-import type { PassoDoOnboarding } from "@/lib/onboarding/passos";
+/**
+ * Forma mínima e serializável necessária para calcular a etapa anterior.
+ * O wizard completo contém funções (`existe`, `cumprido`, `pulado`) e não pode
+ * atravessar a fronteira Server Component -> Client Component.
+ */
+export interface PassoNavegavelOnboarding {
+  segmento: string;
+}
 
 /**
  * Retorna a etapa lógica anterior do wizard, sem depender do histórico do
@@ -7,7 +14,7 @@ import type { PassoDoOnboarding } from "@/lib/onboarding/passos";
  */
 export function hrefAnteriorOnboarding(
   pathname: string,
-  passos: readonly PassoDoOnboarding[],
+  passos: readonly PassoNavegavelOnboarding[],
 ): string | null {
   const prefixo = "/onboarding/";
   if (!pathname.startsWith(prefixo)) return null;

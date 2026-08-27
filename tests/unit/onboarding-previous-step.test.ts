@@ -38,4 +38,12 @@ describe("navegação anterior do onboarding", () => {
       "/onboarding/connect-whatsapp",
     );
   });
+
+  it("funciona com a projeção serializável usada pelo Client Component", () => {
+    const passos = passosVisiveis({ lojaLigada: false }).map((p) => ({ segmento: p.segmento }));
+    expect(hrefAnteriorOnboarding("/onboarding/setup-ai", passos)).toBe(
+      "/onboarding/connect-whatsapp",
+    );
+    expect(Object.values(passos[0] ?? {}).every((valor) => typeof valor !== "function")).toBe(true);
+  });
 });
