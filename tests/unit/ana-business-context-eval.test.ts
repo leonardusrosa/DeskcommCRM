@@ -38,7 +38,7 @@ describe("Regressão da Agente Ana — Grounding Factual de Contexto de Negócio
     expect(assembledSystemPrompt).toContain(anaOriginalSystemPrompt);
 
     // 2. O contexto factual da organização é injetado com alta visibilidade
-    expect(assembledSystemPrompt).toContain("[CONTEXTO DO NEGÓCIO]");
+    expect(assembledSystemPrompt).toContain("[CONTEXTO DO NEGÓCIO — DADOS DE REFERÊNCIA]");
     expect(assembledSystemPrompt).toContain("Empresa: Autocora");
     expect(assembledSystemPrompt).toContain("O que faz: Automações e landing pages");
 

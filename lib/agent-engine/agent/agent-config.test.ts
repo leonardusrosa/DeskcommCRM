@@ -80,7 +80,7 @@ describe('loadPublishedAgentConfigById', () => {
       org_settings: { business_profile: { description: 'Automações e landing pages' } },
     };
     const cfg = await loadPublishedAgentConfig(poolWith(rowWithOrg), 'org1', 'cs1');
-    expect(cfg?.systemPrompt).toContain('[CONTEXTO DO NEGÓCIO]');
+    expect(cfg?.systemPrompt).toContain('[CONTEXTO DO NEGÓCIO — DADOS DE REFERÊNCIA]');
     expect(cfg?.systemPrompt).toContain('Empresa: Autocora');
     expect(cfg?.systemPrompt).toContain('O que faz: Automações e landing pages');
     expect(cfg?.systemPrompt).toContain('Fuso horário: America/Sao_Paulo');
