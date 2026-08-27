@@ -13698,6 +13698,10 @@ alter table public.ai_budgets
 alter table public.ai_invocations
   alter column cost_cents type numeric using cost_cents::numeric;
 
+alter table public.ai_agent_runs
+  alter column cost_cents type numeric using cost_cents::numeric,
+  alter column cost_cents drop not null;
+
 notify pgrst, 'reload schema';
 
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----

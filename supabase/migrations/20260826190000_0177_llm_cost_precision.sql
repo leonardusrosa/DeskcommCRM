@@ -14,3 +14,8 @@ ALTER TABLE public.ai_budgets
 -- 3. ai_invocations legacy table: NUMERIC(10,4) -> NUMERIC
 ALTER TABLE public.ai_invocations
   ALTER COLUMN cost_cents TYPE numeric USING cost_cents::numeric;
+
+-- 4. ai_agent_runs: NUMERIC(10,4) NOT NULL -> NUMERIC NULLable
+ALTER TABLE public.ai_agent_runs
+  ALTER COLUMN cost_cents TYPE numeric USING cost_cents::numeric,
+  ALTER COLUMN cost_cents DROP NOT NULL;

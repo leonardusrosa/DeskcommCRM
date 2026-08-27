@@ -3,7 +3,7 @@
  *
  * Looks up `ai_pricing` (rarely changing global table) or `ai_models` catalog
  * and converts token usage to cost in *cents*, preserving decimal precision.
- * Returns `null` when pricing is unknown/missing (never fake 0).
+ * Returns `null` when pricing is unknown/missing for the token dimensions used (never fake 0).
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -66,7 +66,7 @@ export interface ComputeCostInput {
  */
 async function precoDoCatalogo(
   modelo: string,
-): Promise<{ prompt: number; completion: number } | null> {
+): Promise<{ prompt: number | null; completion: number | null } | null> {
   const admin = createAdminClient();
   const semPrefixo = modelo.includes("/") ? modelo.slice(modelo.indexOf("/") + 1) : modelo;
   const { data } = await admin
@@ -83,46 +83,73 @@ async function precoDoCatalogo(
   }>;
   const linha = linhas.find((l) => l.model_id === modelo) ?? linhas[0];
   if (!linha) return null;
-  if (linha.input_price_per_million_cents === null || linha.output_price_per_million_cents === null) {
-    return null;
-  }
-  const prompt = toNumber(linha.input_price_per_million_cents);
-  const completion = toNumber(linha.output_price_per_million_cents);
-  return { prompt, completion };
+  return {
+    prompt: linha.input_price_per_million_cents !== null ? toNumber(linha.input_price_per_million_cents) : null,
+    completion: linha.output_price_per_million_cents !== null ? toNumber(linha.output_price_per_million_cents) : null,
+  };
 }
 
 /**
  * Returns cost in **cents**, preserving fractional precision.
- * Returns `null` when pricing is missing/unknown.
+ * Returns `null` when pricing is missing/unknown for the dimensions used.
  */
 export async function computeCost(input: ComputeCostInput): Promise<number | null> {
-  const pricing = await loadPricing();
-  const row = pricing.get(input.model);
-  if (!row) {
-    const doCatalogo = await precoDoCatalogo(input.model);
-    if (!doCatalogo) return null;
-    const cents =
-      ((input.promptTokens ?? 0) * doCatalogo.prompt) / 1_000_000 +
-      ((input.completionTokens ?? 0) * doCatalogo.completion) / 1_000_000;
-    return cents;
-  }
-
-  if (row.prompt_cents_per_million_tokens === null || row.completion_cents_per_million_tokens === null) {
-    return null;
-  }
-
-  const promptRate = toNumber(row.prompt_cents_per_million_tokens);
-  const completionRate = toNumber(row.completion_cents_per_million_tokens);
-  const embeddingRate = toNumber(row.embedding_cents_per_million_tokens);
-
   const promptTokens = input.promptTokens ?? 0;
   const completionTokens = input.completionTokens ?? 0;
   const embeddingTokens = input.embeddingTokens ?? 0;
 
+  if (promptTokens === 0 && completionTokens === 0 && embeddingTokens === 0) {
+    return 0;
+  }
+
+  const pricing = await loadPricing();
+  const row = pricing.get(input.model);
+
+  if (row) {
+    if (promptTokens > 0 && (row.prompt_cents_per_million_tokens === null || row.prompt_cents_per_million_tokens === undefined)) {
+      return null;
+    }
+    if (completionTokens > 0 && (row.completion_cents_per_million_tokens === null || row.completion_cents_per_million_tokens === undefined)) {
+      return null;
+    }
+    if (embeddingTokens > 0 && (row.embedding_cents_per_million_tokens === null || row.embedding_cents_per_million_tokens === undefined)) {
+      return null;
+    }
+
+    const promptRate = promptTokens > 0 ? toNumber(row.prompt_cents_per_million_tokens) : 0;
+    const completionRate = completionTokens > 0 ? toNumber(row.completion_cents_per_million_tokens) : 0;
+    const embeddingRate = embeddingTokens > 0 ? toNumber(row.embedding_cents_per_million_tokens) : 0;
+
+    const cents =
+      (promptTokens * promptRate) / 1_000_000 +
+      (completionTokens * completionRate) / 1_000_000 +
+      (embeddingTokens * embeddingRate) / 1_000_000;
+
+    return cents;
+  }
+
+  // Fallback to ai_models catalog:
+  // ai_models only has input/output rates. If embeddingTokens > 0, cannot price -> return null.
+  if (embeddingTokens > 0) {
+    return null;
+  }
+
+  const doCatalogo = await precoDoCatalogo(input.model);
+  if (!doCatalogo) return null;
+
+  if (promptTokens > 0 && doCatalogo.prompt === null) {
+    return null;
+  }
+  if (completionTokens > 0 && doCatalogo.completion === null) {
+    return null;
+  }
+
+  const promptRate = promptTokens > 0 ? (doCatalogo.prompt ?? 0) : 0;
+  const completionRate = completionTokens > 0 ? (doCatalogo.completion ?? 0) : 0;
+
   const cents =
     (promptTokens * promptRate) / 1_000_000 +
-    (completionTokens * completionRate) / 1_000_000 +
-    (embeddingTokens * embeddingRate) / 1_000_000;
+    (completionTokens * completionRate) / 1_000_000;
 
   return cents;
 }

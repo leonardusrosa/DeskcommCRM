@@ -5,17 +5,28 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { computeCostCents, _resetRuntimeCostCacheForTests } from "@/lib/ai/runtime/cost";
 import { computeCost, _resetPricingCacheForTests } from "@/lib/ai/cost";
 import { precoParaCentavosPorMilhao } from "@/lib/ai/catalogo/openrouter";
+import { finalizeRun } from "@/lib/ai/runtime/finalize";
 
 // Mock Supabase admin client for unit tests
+const mockUpdate = vi.fn().mockReturnThis();
+const mockEq = vi.fn().mockReturnThis();
+const mockRpc = vi.fn().mockResolvedValue({ data: null, error: null });
 const mockSelect = vi.fn();
 const mockFrom = vi.fn(() => ({
   select: mockSelect,
+  update: mockUpdate,
+  eq: mockEq,
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     from: mockFrom,
+    rpc: mockRpc,
   }),
+}));
+
+vi.mock("@/lib/audit", () => ({
+  audit: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe("LLM Cost Precision - Runtime & Catalog Hardening", () => {
@@ -62,10 +73,6 @@ describe("LLM Cost Precision - Runtime & Catalog Hardening", () => {
         error: null,
       });
 
-      // 75 input tokens, 244 output tokens
-      // input cost = 75 * 22 / 1M = 0.00165 cents
-      // output cost = 244 * 66 / 1M = 0.016104 cents
-      // total = 0.017754 cents (~ $0.00017754 USD)
       const cost = await computeCostCents({
         provider: "openrouter",
         model: "deepseek/deepseek-v4-flash",
@@ -91,7 +98,6 @@ describe("LLM Cost Precision - Runtime & Catalog Hardening", () => {
         error: null,
       });
 
-      // 50 input tokens: 50 * 0.7 / 1M = 0.000035 cents
       const cost = await computeCostCents({
         provider: "openrouter",
         model: "cheap-model",
@@ -117,9 +123,6 @@ describe("LLM Cost Precision - Runtime & Catalog Hardening", () => {
         error: null,
       });
 
-      // 1000 input tokens: 1000 * 1500 / 1M = 1.5 cents
-      // 500 output tokens: 500 * 7500 / 1M = 3.75 cents
-      // total = 5.25 cents
       const cost = await computeCostCents({
         provider: "anthropic",
         model: "claude-opus-5",
@@ -206,7 +209,6 @@ describe("LLM Cost Precision - Runtime & Catalog Hardening", () => {
           }),
         });
 
-      // 100 prompt tokens (0.003 cents) + 100 completion tokens (0.004 cents) = 0.007 cents
       const cost = await computeCost({
         model: "meta-llama/llama-3.3-70b-instruct",
         promptTokens: 100,
@@ -239,6 +241,157 @@ describe("LLM Cost Precision - Runtime & Catalog Hardening", () => {
 
       expect(cost).toBeNull();
     });
+
+    it("handles embedding-only known price in ai_pricing -> decimal cost", async () => {
+      mockSelect.mockReturnValueOnce({
+        is: vi.fn().mockResolvedValueOnce({
+          data: [
+            {
+              model: "text-embedding-3-small",
+              prompt_cents_per_million_tokens: null,
+              completion_cents_per_million_tokens: null,
+              embedding_cents_per_million_tokens: 2, // $0.02 / 1M = 2 cents / 1M
+            },
+          ],
+          error: null,
+        }),
+      });
+
+      const cost = await computeCost({
+        model: "text-embedding-3-small",
+        embeddingTokens: 500,
+      });
+
+      expect(cost).not.toBeNull();
+      expect(cost!).toBeCloseTo(0.001, 6);
+    });
+
+    it("returns null when embeddingTokens > 0 and embedding rate is NULL in ai_pricing", async () => {
+      mockSelect.mockReturnValueOnce({
+        is: vi.fn().mockResolvedValueOnce({
+          data: [
+            {
+              model: "custom-embed-model",
+              prompt_cents_per_million_tokens: 100,
+              completion_cents_per_million_tokens: 200,
+              embedding_cents_per_million_tokens: null,
+            },
+          ],
+          error: null,
+        }),
+      });
+
+      const cost = await computeCost({
+        model: "custom-embed-model",
+        embeddingTokens: 500,
+      });
+
+      expect(cost).toBeNull();
+    });
+
+    it("returns null when fallback to ai_models catalog is used with embeddingTokens > 0", async () => {
+      mockSelect
+        .mockReturnValueOnce({
+          is: vi.fn().mockResolvedValueOnce({ data: [], error: null }),
+        });
+
+      const cost = await computeCost({
+        model: "catalog-model-without-embedding-rate",
+        embeddingTokens: 500,
+      });
+
+      expect(cost).toBeNull();
+    });
+
+    it("does not require embedding rate when zero embedding tokens are used", async () => {
+      mockSelect.mockReturnValueOnce({
+        is: vi.fn().mockResolvedValueOnce({
+          data: [
+            {
+              model: "gpt-4o",
+              prompt_cents_per_million_tokens: 250,
+              completion_cents_per_million_tokens: 1000,
+              embedding_cents_per_million_tokens: null,
+            },
+          ],
+          error: null,
+        }),
+      });
+
+      const cost = await computeCost({
+        model: "gpt-4o",
+        promptTokens: 100,
+        completionTokens: 100,
+        embeddingTokens: 0,
+      });
+
+      expect(cost).not.toBeNull();
+      expect(cost!).toBeCloseTo(0.125, 6);
+    });
+
+    it("returns 0 for free embedding price explicitly configured as 0", async () => {
+      mockSelect.mockReturnValueOnce({
+        is: vi.fn().mockResolvedValueOnce({
+          data: [
+            {
+              model: "local-embed-free",
+              prompt_cents_per_million_tokens: null,
+              completion_cents_per_million_tokens: null,
+              embedding_cents_per_million_tokens: 0,
+            },
+          ],
+          error: null,
+        }),
+      });
+
+      const cost = await computeCost({
+        model: "local-embed-free",
+        embeddingTokens: 1000,
+      });
+
+      expect(cost).toBe(0);
+    });
+  });
+
+  describe("Finalize persistence with NULL cost", () => {
+    it("finalizeRun passes cost_cents: null to Supabase update without coercing to 0", async () => {
+      await finalizeRun({
+        runId: "test-run-id",
+        organizationId: "test-org-id",
+        status: "completed",
+        costCents: null,
+        tokensIn: 50,
+        tokensOut: 100,
+      });
+
+      expect(mockFrom).toHaveBeenCalledWith("ai_agent_runs");
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "completed",
+          cost_cents: null,
+          tokens_in: 50,
+          tokens_out: 100,
+        }),
+      );
+    });
+
+    it("finalizeRun preserves fractional cost_cents (0.017754) when provided", async () => {
+      await finalizeRun({
+        runId: "test-run-id-2",
+        organizationId: "test-org-id",
+        status: "completed",
+        costCents: 0.017754,
+        tokensIn: 75,
+        tokensOut: 244,
+      });
+
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "completed",
+          cost_cents: 0.017754,
+        }),
+      );
+    });
   });
 
   describe("Aggregation precision", () => {
@@ -249,10 +402,7 @@ describe("LLM Cost Precision - Runtime & Catalog Hardening", () => {
         totalCost += callCost;
       }
 
-      // 1000 * 0.05743 cents = 57.43 cents = $0.5743 USD
       expect(totalCost).toBeCloseTo(57.43, 4);
-
-      // If Math.ceil had been used, total would be 1000 * 1 = 1000 cents ($10.00 USD)
       expect(totalCost).not.toBe(1000);
     });
   });
