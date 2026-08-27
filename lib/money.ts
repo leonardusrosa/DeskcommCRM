@@ -73,10 +73,12 @@ export function formatCentsBRL(cents: number): string {
  * o que muda é o rótulo dizer a unidade real.
  *
  * Invariantes de Precisão:
- * - null / undefined / NaN => "Preço desconhecido" (nunca finge ser zero)
+ * - null / undefined / NaN / non-finite => "Preço desconhecido" (nunca finge ser zero)
  * - 0 exato => "US$ 0,00"
  * - >= 1 centavo (>= US$ 0.01) => apresentação normal (ex: "US$ 0,02", "US$ 1,25")
- * - positivo < 1 centavo (< US$ 0.01) => mostra casas decimais suficientes para evitar zero falso (ex: "US$ 0,0037", "US$ 0,000574")
+ * - positivo < 1 centavo (< US$ 0.01) => calcula a precisão decimal dinamicamente pela
+ *   magnitude do valor para NUNCA exibir zero falso (ex: "US$ 0,0037", "US$ 0,00000035"),
+ *   usando notação de piso inferior para valores infinitesimalmente pequenos.
  */
 export function formatCentsUSD(cents: number | null | undefined): string {
   if (cents === null || cents === undefined) return "Preço desconhecido";
@@ -101,11 +103,20 @@ export function formatCentsUSD(cents: number | null | undefined): string {
     });
   }
 
+  if (usd < 1e-10) {
+    return "< US$ 0,0000000001";
+  }
+
+  // Determina a posição do primeiro dígito significativo após a vírgula
+  const magnitude = Math.floor(Math.log10(usd));
+  const firstSigDigitPos = Math.abs(magnitude);
+  const maxDecimals = Math.min(12, Math.max(4, firstSigDigitPos + 3));
+
   return usd.toLocaleString("pt-BR", {
     style: "currency",
     currency: "USD",
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 6,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: maxDecimals,
   });
 }
 
