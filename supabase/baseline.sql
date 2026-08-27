@@ -13767,12 +13767,14 @@ revoke execute on function public.fn_decrypt_oauth(bytea) from authenticated;
 revoke execute on function public.fn_encrypt_oauth(text) from authenticated;
 revoke execute on function public.fn_lgpd_cascade_redact_contact(uuid, uuid, uuid) from authenticated;
 revoke execute on function public.fn_update_budget_consumption() from authenticated;
+revoke execute on function public.fn_enrich_llm_call_attribution_and_cost() from authenticated;
 
 grant execute on function public.fn_audit_log_row() to service_role;
 grant execute on function public.fn_decrypt_oauth(bytea) to service_role;
 grant execute on function public.fn_encrypt_oauth(text) to service_role;
 grant execute on function public.fn_lgpd_cascade_redact_contact(uuid, uuid, uuid) to service_role;
 grant execute on function public.fn_update_budget_consumption() to service_role;
+grant execute on function public.fn_enrich_llm_call_attribution_and_cost() to service_role;
 
 -- ---- mensagem editada e mensagem apagada (migration 0153) ----
 -- O cliente edita ou apaga no aplicativo e o CRM seguia mostrando a versão

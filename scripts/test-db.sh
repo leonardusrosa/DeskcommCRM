@@ -282,7 +282,7 @@ echo "==> invariantes: vitest (tests/invariants) — banco novo por ARQUIVO, ord
 # `--sequence.shuffle.files`: com o isolamento por arquivo a ordem deixa de ser
 # variável escondida, e sortear é o que impede a próxima colisão de fixture de
 # ficar dormente até alguém renomear um arquivo.
-TEST_DB_CONTAINER="$CONTAINER" TEST_DB_TEMPLATE="$TEMPLATE" \
-  vitest run --config vitest.db.config.ts --sequence.shuffle.files=true "$@"
+TEST_DB_CONTAINER="$CONTAINER" TEST_DB_TEMPLATE="$TEMPLATE" AI_CRED_AES_KEY="${AI_CRED_AES_KEY:-CPK/M1KcOxACRR9ZIwGwurtEYQ/I2qdgQRT1Q8hBKjs=}" \
+  pnpm exec vitest run --config vitest.db.config.ts --sequence.shuffle.files=true "$@"
 
 echo "==> test:db verde"

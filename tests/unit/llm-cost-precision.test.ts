@@ -73,9 +73,9 @@ describe("LLM Cost Precision - Runtime & Catalog Hardening", () => {
         outputTokens: 244,
       });
 
-      // Old buggy behavior would return Math.ceil(0.017754) = 1 cent ($0.01)
-      expect(cost).toBeCloseTo(0.017754, 6);
-      expect(cost).toBeLessThan(1);
+      expect(cost).not.toBeNull();
+      expect(cost!).toBeCloseTo(0.017754, 6);
+      expect(cost!).toBeLessThan(1);
     });
 
     it("calculates tiny costs (< 0.01 cent) accurately", async () => {
@@ -99,8 +99,9 @@ describe("LLM Cost Precision - Runtime & Catalog Hardening", () => {
         outputTokens: 0,
       });
 
-      expect(cost).toBeCloseTo(0.000035, 6);
-      expect(cost).toBeLessThan(0.01);
+      expect(cost).not.toBeNull();
+      expect(cost!).toBeCloseTo(0.000035, 6);
+      expect(cost!).toBeLessThan(0.01);
     });
 
     it("calculates multi-cent costs (> 1 cent) accurately without premature rounding", async () => {
@@ -126,10 +127,11 @@ describe("LLM Cost Precision - Runtime & Catalog Hardening", () => {
         outputTokens: 500,
       });
 
-      expect(cost).toBeCloseTo(5.25, 6);
+      expect(cost).not.toBeNull();
+      expect(cost!).toBeCloseTo(5.25, 6);
     });
 
-    it("returns 0 for free models (0 price) and uncataloged models", async () => {
+    it("returns 0 for genuinely free models (0 price in catalog)", async () => {
       mockSelect.mockResolvedValueOnce({
         data: [
           {
@@ -149,20 +151,41 @@ describe("LLM Cost Precision - Runtime & Catalog Hardening", () => {
         outputTokens: 500,
       });
       expect(costFree).toBe(0);
+    });
 
-      const costUnknown = await computeCostCents({
-        provider: "unknown",
-        model: "non-existent",
+    it("returns NULL for uncataloged models and missing catalog pricing (unknown != free)", async () => {
+      mockSelect.mockResolvedValueOnce({
+        data: [
+          {
+            provider: "opencode_zen",
+            model_id: "zen-model-sem-preco",
+            input_price_per_million_cents: null,
+            output_price_per_million_cents: null,
+          },
+        ],
+        error: null,
+      });
+
+      const costMissing = await computeCostCents({
+        provider: "opencode_zen",
+        model: "zen-model-sem-preco",
         inputTokens: 500,
         outputTokens: 500,
       });
-      expect(costUnknown).toBe(0);
+      expect(costMissing).toBeNull();
+
+      const costUncataloged = await computeCostCents({
+        provider: "unknown",
+        model: "non-existent-model",
+        inputTokens: 500,
+        outputTokens: 500,
+      });
+      expect(costUncataloged).toBeNull();
     });
   });
 
   describe("lib/ai/cost.ts (computeCost)", () => {
     it("preserves fractional cost for legacy worker invocations", async () => {
-      // Mock ai_pricing select empty to fallback to ai_models
       mockSelect
         .mockReturnValueOnce({
           is: vi.fn().mockResolvedValueOnce({ data: [], error: null }),
@@ -190,9 +213,31 @@ describe("LLM Cost Precision - Runtime & Catalog Hardening", () => {
         completionTokens: 100,
       });
 
-      // Old buggy behavior returned Math.ceil(0.007) = 1 cent
-      expect(cost).toBeCloseTo(0.007, 6);
-      expect(cost).toBeLessThan(1);
+      expect(cost).not.toBeNull();
+      expect(cost!).toBeCloseTo(0.007, 6);
+      expect(cost!).toBeLessThan(1);
+    });
+
+    it("returns null when pricing is unknown in both ai_pricing and ai_models", async () => {
+      mockSelect
+        .mockReturnValueOnce({
+          is: vi.fn().mockResolvedValueOnce({ data: [], error: null }),
+        })
+        .mockReturnValueOnce({
+          in: vi.fn().mockReturnValueOnce({
+            is: vi.fn().mockReturnValueOnce({
+              limit: vi.fn().mockResolvedValueOnce({ data: [] }),
+            }),
+          }),
+        });
+
+      const cost = await computeCost({
+        model: "completely-unknown-model",
+        promptTokens: 100,
+        completionTokens: 100,
+      });
+
+      expect(cost).toBeNull();
     });
   });
 

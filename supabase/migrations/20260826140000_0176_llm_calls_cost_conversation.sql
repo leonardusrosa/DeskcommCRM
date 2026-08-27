@@ -120,7 +120,8 @@ begin
 end;
 $$;
 
-revoke all on function public.fn_enrich_llm_call_attribution_and_cost() from public;
+revoke all on function public.fn_enrich_llm_call_attribution_and_cost() from public, authenticated, anon;
+grant execute on function public.fn_enrich_llm_call_attribution_and_cost() to service_role;
 
 -- BEFORE: o trigger de orçamento existente é AFTER INSERT, portanto enxerga o
 -- custo já enriquecido nesta função.
