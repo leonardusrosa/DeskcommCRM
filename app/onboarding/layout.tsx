@@ -25,6 +25,9 @@ export default async function OnboardingLayout({ children }: { children: React.R
     rotulo: p.rotulo,
     cumprido: p.cumprido(state),
   }));
+  // BackButton é Client Component: passe somente dados serializáveis. O objeto
+  // completo de passo contém predicados/funções e não pode cruzar a fronteira RSC.
+  const passosNavegacao = passosDoWizard.map((p) => ({ segmento: p.segmento }));
 
   const isDev = process.env.NODE_ENV !== "production";
 
@@ -37,7 +40,7 @@ export default async function OnboardingLayout({ children }: { children: React.R
             <h1 className="text-lg font-semibold tracking-tight">{activeOrg.name}</h1>
           </div>
           <div className="flex items-center gap-2">
-            <BackButton passos={passosDoWizard} />
+            <BackButton passos={passosNavegacao} />
             {isDev ? <SkipToEnd /> : null}
           </div>
         </div>
