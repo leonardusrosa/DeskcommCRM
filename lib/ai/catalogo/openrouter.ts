@@ -13,11 +13,10 @@
  *
  * ## Três decisões que valem explicação
  *
- * **Preço em centavos por milhão de tokens, com arredondamento para cima.** A
- * OpenRouter publica dólares por token (`"0.00001"`). A conversão perde
- * precisão em qualquer direção; para BAIXO ela subestima o gasto, e um teto de
- * orçamento que subestima é um teto que não segura. Para cima, o pior caso é o
- * cliente ser avisado um pouco antes.
+ * **Preço em centavos por milhão de tokens, preservando precisão decimal.** A
+ * OpenRouter publica dólares por token (`"0.00001"`). A conversão preserva
+ * o valor decimal em centavos por milhão sem Math.ceil prematuro, permitindo
+ * tarifação sub-centavo precisa (ex: $0.007/1M = 0.7 cents/1M).
  *
  * **`tools` vem de `supported_parameters`, não de heurística sobre o nome.** É
  * o dado que impede o operador de escolher, para o ponto que cria o lead, um
@@ -65,7 +64,7 @@ export interface LinhaDeCatalogo {
 export const FONTE_OPENROUTER = "openrouter";
 
 /**
- * Dólares por token → centavos por milhão de tokens, arredondando para CIMA.
+ * Dólares por token → centavos por milhão de tokens, preservando precisão decimal.
  *
  * Devolve `null` quando o preço não veio ou não é numérico — e `null` é
  * deliberado, não zero: zero significaria "de graça" para o somatório de custo,
@@ -80,7 +79,7 @@ export function precoParaCentavosPorMilhao(valor: string | null | undefined): nu
   // Modelo gratuito é 0 de verdade e precisa continuar sendo 0 — distinto de
   // desconhecido, que é null.
   if (dolaresPorToken === 0) return 0;
-  return Math.ceil(dolaresPorToken * 1_000_000 * 100);
+  return dolaresPorToken * 1_000_000 * 100;
 }
 
 /** Traduz UM modelo. `null` quando a entrada não é utilizável. */

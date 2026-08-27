@@ -71,7 +71,7 @@ export interface RunAgentResult {
   tool_calls?: ReturnType<typeof serializeSteps>;
   tokens_in?: number;
   tokens_out?: number;
-  cost_cents?: number;
+  cost_cents?: number | null;
   latency_ms?: number;
   steps_count?: number;
   abort_reason?: string;
@@ -514,7 +514,11 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
       });
-      if (cost > version.cost_budget_cents) {
+      if (cost === null && version.cost_budget_cents > 0 && totalTokens > 0) {
+        abortReason = "cost_unavailable";
+        return true;
+      }
+      if (cost !== null && cost > version.cost_budget_cents) {
         abortReason = "cost_budget_exceeded";
         return true;
       }

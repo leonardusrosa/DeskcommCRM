@@ -1,3 +1,4 @@
+import { encryptKey, bufToBytea } from "@/lib/crypto/aes_gcm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import pg from "pg";
 
@@ -189,6 +190,13 @@ beforeAll(async () => {
     `insert into organizations (id, slug, legal_name, display_name)
      values ($1,'limite-envios-turno','Limite Envios','Limite Envios') on conflict (id) do nothing`,
     [ORG],
+  );
+  const enc = encryptKey("sk-ant-api-test-key-1234");
+  await pool.query(
+    `insert into ai_provider_credentials (id, organization_id, provider, label, api_key_encrypted, api_key_iv, api_key_tag, api_key_last4, is_active, validated_at)
+     values (gen_random_uuid(), $1, 'anthropic', 'Test Key', $2, $3, $4, $5, true, now())
+     on conflict do nothing`,
+    [ORG, bufToBytea(enc.ciphertext), bufToBytea(enc.iv), bufToBytea(enc.tag), enc.last4],
   );
   await pool.query(
     `insert into contacts (id, organization_id, name, phone_number)

@@ -47,7 +47,7 @@ export interface LogInvocationInput {
   prompt_tokens: number;
   completion_tokens: number;
   latency_ms: number;
-  cost_cents: number;
+  cost_cents: number | null;
   finish_reason?: string | null;
   citations?: Array<Record<string, unknown>>;
   error_payload?: Record<string, unknown> | null;

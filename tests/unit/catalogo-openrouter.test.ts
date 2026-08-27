@@ -1,4 +1,7 @@
 /**
+ * @vitest-environment node
+ */
+/**
  * A TRADUÇÃO DO CATÁLOGO — onde o preço da conta do cliente é decidido.
  *
  * Este módulo converte a resposta da OpenRouter no que o sistema guarda, e dois
@@ -41,11 +44,18 @@ describe("preço → centavos por milhão de tokens", () => {
     expect(precoParaCentavosPorMilhao("0.00005")).toBe(5000);
   });
 
-  it("arredonda para CIMA, nunca para baixo", () => {
-    // Um teto de orçamento alimentado por preço subestimado é um teto que não
-    // segura. O pior caso do arredondamento para cima é avisar um pouco antes.
-    expect(precoParaCentavosPorMilhao("0.000000001")).toBe(1);
-    expect(precoParaCentavosPorMilhao("0.0000000001")).toBe(1);
+  it("preserva precisão decimal sub-centavo sem Math.ceil prematuro", () => {
+    // 0.000000001 USD/token = $0.001 / 1M = 0.1 cents / 1M
+    expect(precoParaCentavosPorMilhao("0.000000001")).toBeCloseTo(0.1, 6);
+
+    // 0.000000007 USD/token = $0.007 / 1M = 0.7 cents / 1M (ex: DeepSeek cache hit)
+    expect(precoParaCentavosPorMilhao("0.000000007")).toBeCloseTo(0.7, 6);
+
+    // 0.0000000125 USD/token = $0.0125 / 1M = 1.25 cents / 1M
+    expect(precoParaCentavosPorMilhao("0.0000000125")).toBeCloseTo(1.25, 6);
+
+    // 0.000000123456 USD/token = $0.123456 / 1M = 12.3456 cents / 1M
+    expect(precoParaCentavosPorMilhao("0.000000123456")).toBeCloseTo(12.3456, 6);
   });
 
   it("distingue GRATUITO de DESCONHECIDO", () => {
