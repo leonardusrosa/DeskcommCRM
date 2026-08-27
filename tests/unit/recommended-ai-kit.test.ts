@@ -64,12 +64,13 @@ describe("KIT_RECOMENDADO_V1", () => {
     expect(atual).toEqual(esperado);
   });
 
-  it("declara Whisper como recomendação de áudio sem fingir que o binding fixo foi alterado", () => {
+  it("declara Whisper como recomendação do transcritor separado, sem fingir que é modelo OpenRouter", () => {
     expect(KIT_RECOMENDADO_V1.audio).toMatchObject({
       purpose: "transcricao_de_audio",
-      modelId: "openai/whisper-large-v3-turbo",
+      modelId: "whisper-large-v3-turbo",
       aplicacao: "transcritor_separado",
     });
+    expect(KIT_RECOMENDADO_V1.audio.modelId).not.toContain("/");
     expect(bindingsDoKitRecomendado().some((b) => b.purpose === "transcricao_de_audio")).toBe(false);
   });
 

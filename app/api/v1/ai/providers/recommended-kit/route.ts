@@ -159,6 +159,20 @@ export async function POST(req: NextRequest): Promise<Response> {
     if (!modelo) {
       return fail("kit_modelo_indisponivel", `${binding.modelId} não está no catálogo`, 422);
     }
+
+    // A edição manual permite visão como aviso porque um agente text-only ainda
+    // consegue atender. O PRESET, porém, promete deliberadamente um especialista
+    // de imagem; se o catálogo disser que ele perdeu visão, aplicar mesmo assim
+    // faria o botão "recomendado" instalar uma configuração sabidamente ruim.
+    if (binding.purpose === KIT_RECOMENDADO_V1.imagem.purpose && !modelo.supports_vision) {
+      return fail(
+        "kit_incompativel",
+        `O kit não foi aplicado: ${modelo.model_id} não está marcado como capaz de ler imagens no catálogo atual.`,
+        422,
+        { details: { purpose: binding.purpose, codigo: "modelo_sem_visao" } },
+      );
+    }
+
     const validacao = validarBinding({
       pontoId: binding.purpose,
       modelo: {

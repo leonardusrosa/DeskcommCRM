@@ -39,7 +39,9 @@ export const KIT_RECOMENDADO_V1 = {
     aplicacao: "automatica" as const,
   },
   audio: {
-    modelId: "openai/whisper-large-v3-turbo",
+    // ID do transcritor OpenAI-compatible (ex.: Groq), deliberadamente SEM
+    // prefixo de OpenRouter: o ponto de áudio usa outra API e outra chave.
+    modelId: "whisper-large-v3-turbo",
     rotulo: "Whisper Large V3 Turbo",
     purpose: "transcricao_de_audio",
     aplicacao: "transcritor_separado" as const,
