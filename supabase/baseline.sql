@@ -7606,7 +7606,7 @@ alter table ai_agent_versions
 
 -- ---- split de mensagens por-agente (migration 0059) ----
 alter table ai_agent_versions
-  add column if not exists split_messages boolean not null default false,
+  add column if not exists split_messages boolean not null default true,
   add column if not exists split_max_chars integer not null default 600;
 
 -- ---- templates de script do vendedor (migration 0060) ----
@@ -13701,6 +13701,10 @@ alter table public.ai_invocations
 alter table public.ai_agent_runs
   alter column cost_cents type numeric using cost_cents::numeric,
   alter column cost_cents drop not null;
+
+-- ---- split_messages default true (migration 0178) ----
+alter table public.ai_agent_versions
+  alter column split_messages set default true;
 
 notify pgrst, 'reload schema';
 

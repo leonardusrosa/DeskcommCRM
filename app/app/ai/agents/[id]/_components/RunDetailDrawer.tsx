@@ -20,6 +20,7 @@ import {
 
 import { RunTrace } from "./RunTrace";
 import type { AgentRunRow } from "@/hooks/ai/useAgentRuns";
+import { formatAiCostCents } from "@/lib/money";
 
 interface Props {
   run: AgentRunRow | null;
@@ -28,8 +29,7 @@ interface Props {
 }
 
 function fmtCost(cents: number | null): string {
-  if (cents == null) return "—";
-  return `US$ ${(cents / 100).toFixed(4)}`;
+  return formatAiCostCents(cents);
 }
 
 function fmtLatency(ms: number | null): string {

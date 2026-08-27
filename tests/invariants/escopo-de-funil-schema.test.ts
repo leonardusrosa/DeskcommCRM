@@ -112,7 +112,7 @@ describe("o trigger de imutabilidade", () => {
       ["operator_model", "claude-opus-4-7"], // default null
       ["operator_tool_ids", ["crm_update_lead"]], // default {}
       ["cases_enabled", true], // default false
-      ["split_messages", true], // default false
+      ["split_messages", false], // default TRUE — invertido de propósito
       ["split_max_chars", 500], // default 600
       ["multimodal_input", false], // default TRUE — invertido de propósito
       ["video_frames_enabled", true], // default false

@@ -196,7 +196,7 @@ function buildState(args: {
     ],
     handoff_tool_enabled: version?.handoff_tool_enabled ?? true,
     cases_enabled: version?.cases_enabled ?? false,
-    split_messages: version?.split_messages ?? false,
+    split_messages: version?.split_messages ?? true,
     split_max_chars: version?.split_max_chars ?? 600,
     followup: version?.followup ?? DEFAULT_FOLLOWUP,
     operator_enabled: version?.operator_enabled ?? false,

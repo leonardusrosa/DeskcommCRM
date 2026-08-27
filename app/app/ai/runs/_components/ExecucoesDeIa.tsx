@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { formatCentsUSD } from "@/lib/money";
 
 /**
  * O MESMO formato da tela de Uso — as duas leem `llm_calls.cost_cents`, que é
@@ -223,7 +224,7 @@ export function ExecucoesDeIa() {
                       aparecia como "0.2500 centavos", 100× menor que o mesmo
                       evento na tela de Uso, sem nenhuma das duas dizer qual
                       estava certa. Aqui vale o mesmo formato de lá: reais. */}
-                  {e.cost_cents !== null ? ` · ${usd.format(e.cost_cents / 100)}` : ""}
+                  {` · ${formatCentsUSD(e.cost_cents)}`}
                 </p>
               )}
 

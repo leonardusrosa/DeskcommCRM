@@ -19,6 +19,7 @@ import {
 
 import { useAgentRuns, type AgentRunRow } from "@/hooks/ai/useAgentRuns";
 import { RunDetailDrawer } from "./RunDetailDrawer";
+import { formatAiCostCents } from "@/lib/money";
 
 interface Props {
   agentId: string;
@@ -41,8 +42,7 @@ function fmtLatency(ms: number | null): string {
 }
 
 function fmtCost(cents: number | null): string {
-  if (cents == null) return "—";
-  return `US$ ${(cents / 100).toFixed(4)}`;
+  return formatAiCostCents(cents);
 }
 
 export function RunsTable({ agentId, active }: Props) {

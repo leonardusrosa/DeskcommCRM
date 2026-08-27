@@ -61,8 +61,8 @@ export function formatCentsBRL(cents: number): string {
 }
 
 /**
- * Centavos de DÓLAR → "US$ 249,90". Para todo número que sai de
- * `llm_calls.cost_cents` / `ai_invocations.cost_cents`.
+ * Centavos de DÓLAR → "US$ 249,90" ou "US$ 0,0037" ou "Preço desconhecido".
+ * Para todo número que sai de `llm_calls.cost_cents` / `ai_invocations.cost_cents` / `ai_agent_runs.cost_cents`.
  *
  * ⚠️ EXISTE PORQUE O NÚMERO É DÓLAR E SETE TELAS O ESCREVIAM EM REAL.
  * `lib/agent-engine/edge/llm/pricing.ts` cota o provedor em USD e grava centavo
@@ -72,10 +72,53 @@ export function formatCentsBRL(cents: number): string {
  * (exigiria fonte de câmbio, dependência externa nova num produto self-host):
  * o que muda é o rótulo dizer a unidade real.
  *
- * Vírgula decimal porque a frase é pt-BR; "US$" porque a moeda é dólar. É a
- * mesma escolha de `emDolares` em `lib/agent-engine/edge/llm/orcamento.ts` —
- * mas ali ela não pode importar daqui (o módulo é do engine e roda no worker).
+ * Invariantes de Precisão:
+ * - null / undefined / NaN / non-finite => "Preço desconhecido" (nunca finge ser zero)
+ * - 0 exato => "US$ 0,00"
+ * - >= 1 centavo (>= US$ 0.01) => apresentação normal (ex: "US$ 0,02", "US$ 1,25")
+ * - positivo < 1 centavo (< US$ 0.01) => calcula a precisão decimal dinamicamente pela
+ *   magnitude do valor para NUNCA exibir zero falso (ex: "US$ 0,0037", "US$ 0,00000035"),
+ *   usando notação de piso inferior para valores infinitesimalmente pequenos.
  */
-export function formatCentsUSD(cents: number): string {
-  return ((cents ?? 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "USD" });
+export function formatCentsUSD(cents: number | null | undefined): string {
+  if (cents === null || cents === undefined) return "Preço desconhecido";
+  const n = typeof cents === "number" ? cents : Number(cents);
+  if (!Number.isFinite(n)) return "Preço desconhecido";
+  if (n === 0) {
+    return (0).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
+  const usd = n / 100;
+  if (n >= 1) {
+    return usd.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
+  if (usd < 1e-10) {
+    return "< US$ 0,0000000001";
+  }
+
+  // Determina a posição do primeiro dígito significativo após a vírgula
+  const magnitude = Math.floor(Math.log10(usd));
+  const firstSigDigitPos = Math.abs(magnitude);
+  const maxDecimals = Math.min(12, Math.max(4, firstSigDigitPos + 3));
+
+  return usd.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: maxDecimals,
+  });
 }
+
+/** Alias canônico para formatação de custos de IA em centavos de USD. */
+export const formatAiCostCents = formatCentsUSD;
