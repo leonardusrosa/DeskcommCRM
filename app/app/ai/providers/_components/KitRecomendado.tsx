@@ -165,7 +165,7 @@ export function KitRecomendado() {
       }
       for (const aviso of json.data?.avisos ?? []) toast.warning(aviso);
       toast.success(
-        `Kit recomendado aplicado a ${json.data?.aplicados?.length ?? dados.bindingsAutomaticos.length} pontos.`,
+        `Kit recomendado aplicado a ${json.data?.aplicados?.length ?? dados?.bindingsAutomaticos.length ?? 0} pontos.`,
       );
       window.location.reload();
     } catch (e) {
@@ -176,17 +176,19 @@ export function KitRecomendado() {
   }
 
   function abrirEdicao() {
+    if (!dados) return;
     setRascunho({ ...dados.modelosEfetivos });
     setEditando(true);
   }
 
   function cancelarEdicao() {
+    if (!dados) return;
     setRascunho({ ...dados.modelosEfetivos });
     setEditando(false);
   }
 
   async function salvarPreset() {
-    if (!dados.podeEditar || salvando) return;
+    if (!dados || !dados.podeEditar || salvando) return;
     setSalvando(true);
     try {
       const res = await fetch("/api/v1/ai/providers/recommended-kit", {

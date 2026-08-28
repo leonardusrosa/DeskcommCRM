@@ -46,10 +46,14 @@ const corpoDoPut = z.object({
   }),
 });
 
-async function contexto(minRole: "manager" | "admin") {
+type ContextoResult =
+  | { resposta: Response }
+  | { user: Awaited<ReturnType<typeof requireAuth>>; org: NonNullable<Awaited<ReturnType<typeof resolveActiveOrg>>>; db: Awaited<ReturnType<typeof createClient>> };
+
+async function contexto(minRole: "manager" | "admin"): Promise<ContextoResult> {
   const user = await requireAuth();
   const org = await resolveActiveOrg(user);
-  if (!org) return { resposta: fail("no_active_org", "nenhuma organização ativa", 400) } as const;
+  if (!org) return { resposta: fail("no_active_org", "nenhuma organização ativa", 400) } ;
   if (ROLE_RANK[org.role] < ROLE_RANK[minRole]) {
     return {
       resposta: fail(
@@ -57,9 +61,9 @@ async function contexto(minRole: "manager" | "admin") {
         minRole === "admin" ? "requer papel de administrador" : "requer papel de gerente ou superior",
         403,
       ),
-    } as const;
+    } ;
   }
-  return { user, org, db: await createClient() } as const;
+  return { user, org, db: await createClient() } ;
 }
 
 function kitParaResposta(modelos: ModelosDoKitRecomendado, catalogo: ModeloDoCatalogo[]) {
