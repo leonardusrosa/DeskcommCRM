@@ -335,6 +335,8 @@ export const AUDIT_ACTIONS = [
   // auditoria: ela guarda quantas linhas saíram, sob que retenção, e é NOVA
   // demais para a chamada seguinte do expurgo alcançar — a trilha registra
   // a própria erosão em vez de encolher sem deixar marca.
+  "ai.recommended_kit_customized",
+  "ai.recommended_kit_applied",
   "retention.sweep_run",
 ] as const;
 

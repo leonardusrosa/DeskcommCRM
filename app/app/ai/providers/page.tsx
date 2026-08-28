@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireAuth, resolveActiveOrg } from "@/lib/auth/server";
 import { ROLE_RANK } from "@/lib/auth/types";
 
+import { KitRecomendado } from "./_components/KitRecomendado";
 import { PainelDeProvedores } from "./_components/PainelDeProvedores";
 
 export const dynamic = "force-dynamic";
@@ -26,5 +27,12 @@ export default async function ProvedoresPage() {
   if (!activeOrg) redirect("/app");
   if (ROLE_RANK[activeOrg.role] < ROLE_RANK.manager) redirect("/403");
 
-  return <PainelDeProvedores />;
+  return (
+    <>
+      <div className="mx-auto w-full max-w-5xl px-6 pt-6">
+        <KitRecomendado />
+      </div>
+      <PainelDeProvedores />
+    </>
+  );
 }
