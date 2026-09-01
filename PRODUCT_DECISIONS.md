@@ -1,85 +1,75 @@
 # Product Decisions
 
-This file records product decisions that are considered locked unless explicitly revisited.
+This document records canonical product and architectural decisions for DeskcommCRM that are considered locked unless explicitly revisited through formal product review.
 
-## Locked roadmap additions
+## Summary of Locked Decisions
 
-### Google Review Lite
+| Feature / Topic | Status | Architecture & Boundaries |
+| :--- | :--- | :--- |
+| **GOOGLE REVIEW LITE** | **LOCKED** | Lightweight review request via existing WhatsApp channel; no Google Business Profile API in V1; deduplication & cooldown. |
+| **CRM AI COPILOT** | **LOCKED** | Internal AI assistant for CRM operators; reuses AI provider and context stack; read direct, write requires confirmation. |
+| **CALENDAR** | **LOCKED** | Google Calendar engine (freebusy & events) + Deskcomm native booking UX (availability rules, slots, CRM linkage). |
+| **CAL.COM** | **NOT DEFAULT / FUTURE OPTIONAL ADAPTER** | Not a core dependency for V1; kept as an optional future adapter only if proven necessary. |
+| **OMNICHANNEL** | **OUT OF CURRENT SCOPE** | Focused on WhatsApp and existing channel stability; no premature channel sprawl. |
+| **LANDING PAGE BUILDER** | **OUT OF CURRENT SCOPE** | External forms/webhooks and native booking slots suffice; no website builder in V1. |
 
-Status: **LOCKED**
+---
 
-Goal: add a lightweight review-request workflow without requiring Google Business Profile API integration for v1.
+## 1. Google Review Lite
 
-Scope:
-- Per-organization Google review URL.
-- Reusable review request message template.
-- Manual send from CRM and future lifecycle/status trigger support.
-- Track request send state in the CRM/audit trail.
-- No review gating, no sentiment-based filtering, and no suppression based on expected rating.
-- No Google Business Profile API dependency in v1.
+- **Status:** **LOCKED / PLANNED**
+- **Objective:** Enable the CRM to automatically or manually request a Google review from a customer following a qualifying business event, without requiring Google Business Profile API integration.
+- **Core Architecture:**
+  - Organization configures its direct Google review link (e.g., `https://g.page/r/.../review`).
+  - Organization configures a review request message template with placeholders (`{{google_review_url}}`, `{{nome}}`).
+  - Messages are dispatched through the existing connected WhatsApp outbound channel (`send_ledger`, standard anti-ban, opt-out, and before-send guardrails).
+- **Triggers & Controls:**
+  - Automatic triggers: opportunity marked won (`crm_leads` won) or appointment completed (`calendar_appointments` completed).
+  - Manual trigger: operator button in conversation CRM side panel.
+  - Controls: enable/disable toggle, custom review URL, template, trigger delays, and cooldown window (e.g., max 1 request every 90 days per contact).
+  - Anti-spam: strict deduplication per contact; requests logged to audit trail.
+- **Explicit Boundary:** V1 does **not** include Google Business Profile API, reading reviews, review sentiment gating, auto-replying to Google reviews, or review analytics.
 
-Example message pattern:
+---
 
-> Aproveitando...
->
-> Sua avaliação no Google é muito importante para o nosso escritório e ajuda outras pessoas a conhecerem nosso trabalho.
->
-> Você pode contar brevemente como foi o atendimento, a clareza das orientações e o acompanhamento do seu caso, sem mencionar informações pessoais.
->
-> Avalie pelo link:
-> {{google_review_url}}
+## 2. CRM AI Copilot
 
-### CRM AI Copilot
+- **Status:** **LOCKED / PLANNED**
+- **Objective:** Provide a built-in AI assistant for CRM operators and sales agents, distinct from the customer-facing AI agent.
+- **Core Architecture:**
+  - Accessible via native CRM UI (persistent assistant drawer/sidebar in Inbox and Kanban).
+  - Operates under its own system prompt and purpose (`crm_copilot` in `lib/ai/pontos/registro.ts`), sharing the underlying AI gateway, model catalog, and business context infrastructure.
+  - Scoped to authorized tenant data (`contacts`, `conversations`, `crm_leads`, `crm_stages`, `appointments`, `tasks`, `notes`, `memory`).
+- **Core Capabilities:**
+  - Summarize conversations, leads, and customer relationship history.
+  - Identify missing qualification data and suggest next best actions.
+  - Analyze objections and surface customer promises or overdue follow-ups.
+  - Draft recommended replies directly into the composer.
+- **Safety Principle:**
+  - **READ** operations execute directly when authorized.
+  - **WRITE / MUTATING** actions (moving pipeline stages, creating/rescheduling appointments, sending messages) require explicit human operator confirmation.
+  - Customer-facing autonomous agent runtime and internal Copilot runtime remain separate surfaces.
 
-Status: **LOCKED**
+---
 
-Goal: provide a built-in AI copilot for CRM operators.
+## 3. Google Calendar + Native Booking
 
-Target capabilities:
-- Summarize the current conversation/contact.
-- Surface relevant CRM memory, lead stage, open opportunity, promises, and follow-ups.
-- Suggest the next best action.
-- Draft replies for operator approval.
-- Explain why a lead is in its current stage and what is missing to advance.
-- Search/query CRM records within the current organization scope.
-- Never send messages or mutate CRM state without explicit operator action unless a future separately-authorized automation mode is introduced.
+- **Status:** **LOCKED DIRECTION**
+- **Core Architecture:**
+  - **Google Calendar = Calendar Engine & Source of Truth:** Manages external events, calendar storage, and `FreeBusy` query time blocks.
+  - **Deskcomm = Native Booking Experience & Business Rules:** Manages appointment types, duration, business hours, buffers, minimum notices, slot calculation, contact/lead linkage, and CRM UI.
+  - **No Cal.com Dependency:** Deskcomm handles the scheduling UX and availability calculations natively. Cal.com remains a possible future adapter.
+- **Core Capabilities:**
+  - **CRM Operator:** Check available slots, schedule, reschedule, and cancel appointments directly from contact or opportunity views.
+  - **Customer-Facing Agent:** Query real-time available slots via MCP tools (`crm_check_availability`), propose options to leads, and confirm appointments (`crm_create_appointment`).
+  - **Availability Engine:** Computes slots using organization working hours (`attendant_availability.schedule`), service duration, buffers, and live Google `FreeBusy` blocks.
+  - **Domain Model:** Hybrid model with `calendar_event_types` (molds) and `calendar_appointments` (booked events with Google IDs and CRM foreign keys).
 
-This is a core CRM capability, not a provider-specific add-on.
+---
 
-### Native booking powered by Google Calendar
+## 4. Boundaries & Out-of-Scope Items
 
-Status: **LOCKED**
-
-Decision: do **not** make Cal.com or Calendly a required dependency for the first implementation if native booking can be built directly on Google Calendar.
-
-Google Calendar is the first-class calendar engine/source of truth. Deskcomm owns the booking UX and booking rules.
-
-Target behavior:
-- Organization connects one or more Google Calendars.
-- Deskcomm stores booking configuration such as:
-  - appointment/service types;
-  - duration;
-  - buffers before/after;
-  - business hours;
-  - minimum notice;
-  - maximum advance booking window;
-  - timezone;
-  - assigned calendars/users;
-  - cancellation/reschedule policy.
-- Deskcomm queries Google Calendar free/busy and computes available slots.
-- AI agent can offer available slots directly in WhatsApp/chat.
-- Operator can view availability and create appointments from the CRM.
-- Booking creates, updates, and cancels Google Calendar events while storing linked appointment metadata in Deskcomm.
-- Contact/opportunity timeline shows appointment lifecycle.
-- Reminder/follow-up automation hooks should be possible later.
-- Prevent double booking and correctly handle timezone/DST.
-- A native booking page/widget can later consume the same internal availability/booking API.
-
-Architecture should keep the calendar provider behind an adapter so a future Cal.com integration can be added without making Cal.com a core dependency.
-
-## Out of scope for these decisions
-
-- Omnichannel expansion.
-- Landing-page builder.
-- Full Google Business Profile API / review analytics for Google Review Lite v1.
-- Cal.com/Calendly deployment unless later technical evidence shows native booking is materially worse than an adapter-based external scheduler.
+- **Cal.com / External Schedulers:** NOT default. Kept as optional future adapters.
+- **Omnichannel:** OUT OF CURRENT SCOPE. WhatsApp remains the primary communication channel.
+- **Landing Page Builder:** OUT OF CURRENT SCOPE. Native booking UX and webhook form ingestion fulfill acquisition needs.
+- **Full Google Business Profile API:** OUT OF CURRENT SCOPE for Review Lite V1.
