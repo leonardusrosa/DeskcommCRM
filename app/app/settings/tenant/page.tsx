@@ -2,7 +2,9 @@ import { redirect } from "next/navigation";
 
 import { requireAuth, resolveActiveOrg } from "@/lib/auth/server";
 import { ROLE_RANK } from "@/lib/auth/types";
+import { parseCommercialFeatures } from "@/lib/crm/commercial-features";
 import { createClient } from "@/lib/supabase/server";
+import { CommercialFeaturesForm } from "./_commercial-features";
 import { TenantForm } from "./_form";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +46,7 @@ export default async function TenantSettingsPage() {
       : []) as string[];
 
   return (
-    <div className="flex h-full flex-col gap-6 p-6">
+    <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Organização</h1>
         <p className="text-sm text-muted-foreground">
@@ -52,25 +54,28 @@ export default async function TenantSettingsPage() {
         </p>
       </header>
       {row && (
-        <TenantForm
-          initial={{
-            display_name: row.display_name,
-            legal_name: row.legal_name,
-            cnpj: row.cnpj,
-            timezone: row.timezone,
-            // `en-US` saiu da lista (nunca teve tradução). Uma linha antiga
-            // com ele cai no padrão em vez de quebrar a tela.
-            locale: row.locale === "es" ? "es" : "pt-BR",
-            media_retention_days: row.media_retention_days,
-            dpo_email: row.dpo_email,
-            privacy_policy_url: row.privacy_policy_url,
-            lost_reasons_extra: lostReasonsExtra,
-            business_profile_description:
-              (row.settings?.business_profile as { description?: string } | null)?.description ??
-              (row.onboarding_state?.welcome as { o_que_faz?: string } | null)?.o_que_faz ??
-              null,
-          }}
-        />
+        <>
+          <TenantForm
+            initial={{
+              display_name: row.display_name,
+              legal_name: row.legal_name,
+              cnpj: row.cnpj,
+              timezone: row.timezone,
+              // `en-US` saiu da lista (nunca teve tradução). Uma linha antiga
+              // com ele cai no padrão em vez de quebrar a tela.
+              locale: row.locale === "es" ? "es" : "pt-BR",
+              media_retention_days: row.media_retention_days,
+              dpo_email: row.dpo_email,
+              privacy_policy_url: row.privacy_policy_url,
+              lost_reasons_extra: lostReasonsExtra,
+              business_profile_description:
+                (row.settings?.business_profile as { description?: string } | null)?.description ??
+                (row.onboarding_state?.welcome as { o_que_faz?: string } | null)?.o_que_faz ??
+                null,
+            }}
+          />
+          <CommercialFeaturesForm initial={parseCommercialFeatures(row.settings)} />
+        </>
       )}
     </div>
   );
