@@ -71,22 +71,20 @@ export async function patchOnboardingState(
   extra?: { display_name?: string; timezone?: string; business_profile_description?: string },
 ): Promise<void> {
   const admin = createAdminClient();
-  const { data, error: readErr } = await admin
-    .from("organizations")
-    .select("onboarding_state, settings")
-    .eq("id", orgId)
-    .maybeSingle();
-  if (readErr) throw new OnboardingError("db_error", readErr.message);
-  if (!data) throw new OnboardingError("not_found", "Organização não encontrada.");
-
-  const state = (data.onboarding_state as OnboardingState | null) ?? {};
+  const { state } = await loadOnboardingState(orgId);
   const merged: OnboardingState = { ...state, ...patch };
   const update: Record<string, unknown> = { onboarding_state: merged };
   if (extra?.display_name) update.display_name = extra.display_name;
   if (extra?.timezone) update.timezone = extra.timezone;
 
   if (extra?.business_profile_description !== undefined) {
-    const currentSettings = (data.settings as Record<string, unknown> | null) ?? {};
+    const { data: orgData, error: readErr } = await admin
+      .from("organizations")
+      .select("settings")
+      .eq("id", orgId)
+      .maybeSingle();
+    if (readErr) throw new OnboardingError("db_error", readErr.message);
+    const currentSettings = (orgData?.settings as Record<string, unknown> | null) ?? {};
     const currentBusinessProfile = (currentSettings.business_profile as Record<string, unknown> | null) ?? {};
     update.settings = {
       ...currentSettings,

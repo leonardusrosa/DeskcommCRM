@@ -1,53 +1,48 @@
 /**
- * A chave funciona — e tem saldo?
+ * PROVA DE SALDO / CRÉDITO DA INSTALAÇÃO.
  *
- * O produto já sabia responder a primeira metade e chamava isso de "Validada".
- * O validador bate em `GET /v1/models` de cada provedor: um endpoint de
- * LISTAGEM, que não consome crédito e responde 200 com a conta zerada. Ou seja,
- * o selo verde prova que a chave existe e é aceita — nunca que ela vai
- * funcionar. Quem instalou, viu "Validada" e recebeu erro na primeira conversa
- * não tinha como saber onde olhar.
+ * ## O que isto resolve (spec 19 §4)
  *
- * A única coisa que prova saldo é a coisa que o provedor cobra: uma geração.
- * Por isso a prova aqui é uma chamada real, mínima (um token), e por isso ela
- * nunca sai de graça — é explicitamente pedida, não roda num GET que a tela
- * chama sozinha.
+ * O instalador aceitava chaves sem saldo (ou com quota esgotada) porque só
+ * testava *autenticação* (geralmente uma listagem de modelos). A instalação
+ * nascia com o selo "Validada", mas na primeira mensagem real o agente falhava
+ * com `insufficient_quota` / `credit_limit_exceeded`.
  *
- * ⚠️ Não usa `runModelCall` de propósito: aquele caminho grava em `llm_calls` e
- * é barrado pelo orçamento mensal. Um diagnóstico não pode poluir a tabela que
+ * Este módulo faz uma *geração mínima* (1 token de saída) no modelo escolhido
+ * usando a chave informada. Se o provedor responder 200, a chave tem saldo
+ * suficiente para começar. Qualquer outro status (401, 402, 429 com quota) é
+ * devolvido com mensagem clara para o operador corrigir antes de avançar.
+ *
+ * ⚠️ NÃO pode depender do banco de dados nem de auth Supabase: roda durante a
+ * instalação (quando o banco pode estar sendo inicializado) e no diagnóstico que
  * ele mesmo lê, nem ser recusado justamente quando o operador precisa descobrir
  * por que nada funciona.
  */
+import { normalizarErro } from "@/lib/agent-engine/edge/llm/run-model-call";
 import {
   cabecalhosDeAtribuicaoOpenRouter,
   OPENROUTER_ENDPOINT,
   OPENCODE_ZEN_ENDPOINT,
   DEEPSEEK_ENDPOINT,
 } from "@/lib/agent-engine/edge/llm/providers";
-import { normalizarErroDoProvedor } from "@/lib/ai/erros/normalizador";
-import type { AcaoSugeridaErro, CategoriaDeErroDoProvedor } from "@/lib/ai/erros/tipos";
 
 export type ResultadoDaProva =
   | { ok: true }
   | {
       ok: false;
-      codigo: CategoriaDeErroDoProvedor | string;
-      titulo: string;
+      /** Mesmos baldes da tela de Execuções — uma régua só para o mesmo erro. */
+      codigo: string;
       mensagem: string;
-      acaoSugerida: AcaoSugeridaErro | string;
       httpStatus: number | null;
     };
 
-interface Requisicao {
+type Requisicao = {
   url: string;
   headers: Record<string, string>;
   body: unknown;
-}
+};
 
-/**
- * A menor geração possível em cada provedor. `max_tokens: 1` porque o objetivo
- * é atravessar a cobrança, não obter texto.
- */
+/** Monta o payload HTTP mínimo para cada provedor suportado. */
 export function montarRequisicaoDeProva(
   provider: string,
   apiKey: string,
@@ -95,9 +90,7 @@ export function montarRequisicaoDeProva(
       };
     case "google":
       return {
-        url: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-          modelo,
-        )}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        url: `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${apiKey}`,
         headers: { "content-type": "application/json" },
         body: {
           contents: [{ parts: [{ text: "oi" }] }],
@@ -134,30 +127,29 @@ export function montarRequisicaoDeProva(
         },
       };
     default:
+      // Fail-closed: provedor que este módulo não sabe cobrar não recebe um
+      // "ok" por omissão — seria a frase tranquilizadora de novo.
       return null;
   }
 }
 
-/** Traduz a resposta HTTP no vocabulário amigável e seguro de erro do runtime. */
-export function classificarResposta(
-  status: number,
-  corpo: string,
-  modelId?: string,
-): ResultadoDaProva {
+/** Traduz a resposta HTTP no mesmo vocabulário de erro do runtime. */
+export function classificarResposta(status: number, corpo: string): ResultadoDaProva {
   if (status >= 200 && status < 300) return { ok: true };
-  const amigavel = normalizarErroDoProvedor(corpo, status, modelId);
+  // `normalizarErro` lê `status` do objeto — é a régua canônica, compartilhada
+  // com a tela de Execuções, e ela também redige a mensagem do provedor (que
+  // pode ecoar header de autorização em endpoint próprio).
+  const err = Object.assign(new Error(corpo), { status });
+  const n = normalizarErro(err);
   return {
     ok: false,
-    codigo: amigavel.categoria,
-    titulo: amigavel.titulo,
-    mensagem: amigavel.mensagem,
-    acaoSugerida: amigavel.acaoSugerida,
-    httpStatus: typeof status === "number" ? status : null,
+    codigo: n.error_code,
+    mensagem: n.error_message,
+    httpStatus: n.http_status,
   };
 }
 
-const TIMEOUT_MS = 8000;
-
+/** Executa uma requisição mínima de 1 token contra o provedor e classifica a resposta. */
 export async function provarSaldo(
   provider: string,
   apiKey: string,
@@ -168,17 +160,16 @@ export async function provarSaldo(
   if (!req) {
     return {
       ok: false,
-      codigo: "UNKNOWN_PROVIDER_ERROR",
-      titulo: "Provedor não reconhecido",
+      codigo: "provedor_desconhecido",
       mensagem: `Não sei como testar o provedor "${provider}".`,
-      acaoSugerida: "tentar_novamente",
       httpStatus: null,
     };
   }
 
   const f = opcoes?.fetchImpl ?? fetch;
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), 15_000);
+
   try {
     const res = await f(req.url, {
       method: "POST",
@@ -187,17 +178,12 @@ export async function provarSaldo(
       signal: ctrl.signal,
     });
     const corpo = await res.text().catch(() => "");
-    return classificarResposta(res.status, corpo, modelo);
+    return classificarResposta(res.status, corpo);
   } catch (err) {
-    const amigavel = normalizarErroDoProvedor(err, null, modelo);
-    return {
-      ok: false,
-      codigo: amigavel.categoria,
-      titulo: amigavel.titulo,
-      mensagem: amigavel.mensagem,
-      acaoSugerida: amigavel.acaoSugerida,
-      httpStatus: amigavel.httpStatus ?? null,
-    };
+    // Rede fora, DNS, timeout: NÃO é chave ruim, e dizer que é mandaria o
+    // operador trocar uma chave que está certa.
+    const n = normalizarErro(err);
+    return { ok: false, codigo: n.error_code, mensagem: n.error_message, httpStatus: n.http_status };
   } finally {
     clearTimeout(timer);
   }

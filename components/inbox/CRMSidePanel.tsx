@@ -19,6 +19,7 @@ import { useDefaultPipeline } from "@/hooks/pipelines/useDefaultPipeline";
 import { NewLeadDialog } from "@/components/kanban/NewLeadDialog";
 import { cn } from "@/lib/utils";
 import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
+import { ContactAppointmentsCard } from "@/components/agenda/ContactAppointmentsCard";
 
 interface Props {
   conversation: ConversationWithContact | null;
@@ -415,6 +416,16 @@ export function CRMSidePanel({ conversation }: Props) {
           contactId={contactId}
         />
       )}
+
+      <Separator />
+
+      <section data-testid="inbox-agendamentos">
+        <ContactAppointmentsCard
+          contactId={contactId}
+          conversationId={conversation.id}
+          contactName={displayName}
+        />
+      </section>
 
       <Separator />
 

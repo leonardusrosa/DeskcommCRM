@@ -10,6 +10,7 @@ import { ScoreSlot } from "./ScoreSlot";
 import { LeadTimeline } from "./LeadTimeline";
 import { OwnerBadge } from "./OwnerBadge";
 import { resolveLeadOwner } from "@/lib/kanban/owner";
+import { ContactAppointmentsCard } from "@/components/agenda/ContactAppointmentsCard";
 
 interface Props {
   open: boolean;
@@ -122,6 +123,16 @@ export function LeadDossier({
         )}
 
         <ConversaNoDossie conversa={lead.conversa} />
+
+        {lead.contact_id && (
+          <section className="border-t border-border pt-3">
+            <ContactAppointmentsCard
+              contactId={lead.contact_id}
+              leadId={lead.id}
+              contactName={lead.title}
+            />
+          </section>
+        )}
 
         {/* ② timeline */}
         <section className="flex-1 py-3">

@@ -12,9 +12,9 @@ describe("split_messages default em ai_agent_versions", () => {
     tool_ids: [],
   };
 
-  it("nova versão sem split_messages explícito recebe true como default do produto", () => {
+  it("nova versão sem split_messages explícito recebe false como default da migration 0059", () => {
     const parsed = versionCreateSchema.parse(baseVersion);
-    expect(parsed.split_messages).toBe(true);
+    expect(parsed.split_messages).toBe(false);
   });
 
   it("respeita false explícito quando fornecido pelo chamador em versionCreateSchema", () => {
@@ -33,22 +33,22 @@ describe("split_messages default em ai_agent_versions", () => {
     expect(parsed.split_messages).toBe(true);
   });
 
-  it("novo agente via agentMcpCreateSchema sem split_messages recebe true", () => {
+  it("novo agente via agentMcpCreateSchema sem split_messages recebe false", () => {
     const parsed = agentMcpCreateSchema.parse({
       name: "Novo Atendente",
       version: baseVersion,
     });
-    expect(parsed.version.split_messages).toBe(true);
+    expect(parsed.version.split_messages).toBe(false);
   });
 
-  it("novo agente via agentMcpCreateSchema com split_messages: false preserva false", () => {
+  it("novo agente via agentMcpCreateSchema com split_messages: true preserva true", () => {
     const parsed = agentMcpCreateSchema.parse({
       name: "Novo Atendente",
       version: {
         ...baseVersion,
-        split_messages: false,
+        split_messages: true,
       },
     });
-    expect(parsed.version.split_messages).toBe(false);
+    expect(parsed.version.split_messages).toBe(true);
   });
 });
