@@ -150,6 +150,25 @@ export async function GET(req: NextRequest): Promise<Response> {
     );
   }
 
+  // ─── A OCUPAÇÃO DO GOOGLE ENTRA AQUI, e não em `listaAgendamentos` ────────
+  //
+  // O defeito, medido em produção em 2026-09-01: 114 eventos vindos do Google no
+  // banco, 1 deles na semana desenhada, e a tela mostrando a agenda vazia.
+  //
+  // O servidor SEMEAVA os externos (`app/app/agenda/page.tsx`), e o cliente os
+  // jogava fora: `agendamentosVivos ?? semente` — assim que este GET responde,
+  // ele SUBSTITUI a semente inteira, e esta rota nunca devolveu ocupação. Em
+  // visão Mês nem a semente sobrevive, porque o recorte muda e o fallback é `[]`.
+  // Resultado: o bloco aparecia no primeiro instante da semana corrente e sumia.
+  //
+  // ⚠️ POR QUE NÃO DENTRO DE `listaAgendamentos`. Aquela função é compartilhada
+  // com a ferramenta MCP do agente de IA (`lib/mcp/tools/agendamento.ts`). Pôr
+  // "Ocupado" na resposta dela faria o agente enxergar compromisso onde há um
+  // bloco anônimo do Google — e falar sobre ele com o cliente. A tela precisa da
+  // ocupação; o agente, não. Fontes diferentes para consumidores diferentes.
+  //
+  // Falha aqui NÃO derruba a listagem: sem ocupação a grade fica pobre; sem
+  // agendamento ela fica errada. São consequências de tamanhos diferentes.
   const externos: AgendamentoDaResposta[] = [];
   if (parsed.data.de && parsed.data.ate) {
     const { data: ocupacao, error: erroOcupacao } = await supabase
@@ -158,6 +177,8 @@ export async function GET(req: NextRequest): Promise<Response> {
       .eq("organization_id", activeOrg.orgId)
       .gte("starts_at", parsed.data.de)
       .lt("starts_at", parsed.data.ate)
+      // `transparent` no Google é "livre": existe e não ocupa. Mesmo filtro que
+      // a semente do servidor já aplicava — a regra é uma só.
       .neq("transparency", "transparent")
       .neq("status", "cancelled")
       .order("starts_at");
@@ -173,11 +194,18 @@ export async function GET(req: NextRequest): Promise<Response> {
       const dono = Array.isArray(conexao) ? conexao[0]?.user_id : conexao?.user_id;
       externos.push({
         id: e.id,
+        // Rótulo, NUNCA o título do evento: a tabela guarda o `title` e esta
+        // resposta não o lê. Despejar o conteúdo da agenda pessoal na tela de
+        // trabalho é o que a consulta da semente também recusa.
         titulo: "Ocupado",
         donoId: dono ?? null,
         iniciaEm: e.starts_at,
         terminaEm: e.ends_at,
         situacao: "confirmed",
+        // Os três abaixo existem para satisfazer o contrato da lista, e são
+        // vazios porque ocupação do Google não tem nenhum deles: o fuso vive na
+        // conexão, e contato é coisa de agendamento nosso. Preenchê-los com
+        // invenção faria a tela mostrar dado que não existe.
         fuso: "",
         contatoId: null,
         contatoNome: null,
@@ -201,6 +229,13 @@ export async function DELETE(req: NextRequest): Promise<Response> {
   return despachar(req, cancelarSchema, cancelarAgendamentoHandler, 200);
 }
 
+/**
+ * O caminho comum dos três verbos: papel, forma, handler, tradução.
+ *
+ * Um só, e não três cópias, porque a diferença entre eles é o schema e a função
+ * — o resto é idêntico, e três cópias divergiriam no primeiro ajuste, que é
+ * exatamente o defeito que a extração do handler veio consertar.
+ */
 async function despachar<T>(
   req: NextRequest,
   schema: z.ZodType<T>,
@@ -230,6 +265,9 @@ async function despachar<T>(
     const resultado = await handler(
       supabase,
       {
+        // A organização vem do COOKIE VALIDADO, nunca do corpo. Pela tool, ela
+        // vem do contexto do agente — e é por isso que o handler a recebe como
+        // parâmetro em vez de resolvê-la sozinho.
         organization_id: activeOrg.orgId,
         actor: { type: "user", id: user.id },
         requestId,
