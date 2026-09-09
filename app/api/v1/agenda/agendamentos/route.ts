@@ -15,8 +15,19 @@ import { randomUUID } from "node:crypto";
 import { type NextRequest } from "next/server";
 import { z } from "zod";
 
-import { listaAgendamentos } from "@/lib/agenda/consulta";
+import { listaAgendamentos, type AgendamentoListado } from "@/lib/agenda/consulta";
 import { fail, ok } from "@/lib/api/wrappers";
+import { logger } from "@/lib/logger";
+
+/**
+ * O que ESTA ROTA devolve — o contrato da lista mais a ORIGEM.
+ *
+ * `AgendamentoListado` não tem origem de propósito: ela é o contrato que a
+ * ferramenta MCP do agente também consome, e lá só existe uma origem possível.
+ * A tela precisa distinguir, porque bloco vindo do Google não abre, não arrasta
+ * e não se clica.
+ */
+type AgendamentoDaResposta = AgendamentoListado & { origem?: "google_sync" };
 import { ApiError } from "@/lib/api/types";
 import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
@@ -139,7 +150,43 @@ export async function GET(req: NextRequest): Promise<Response> {
     );
   }
 
-  return ok(resultado.agendamentos, { requestId });
+  const externos: AgendamentoDaResposta[] = [];
+  if (parsed.data.de && parsed.data.ate) {
+    const { data: ocupacao, error: erroOcupacao } = await supabase
+      .from("calendar_external_events")
+      .select("id, starts_at, ends_at, calendar_connections!inner(user_id)")
+      .eq("organization_id", activeOrg.orgId)
+      .gte("starts_at", parsed.data.de)
+      .lt("starts_at", parsed.data.ate)
+      .neq("transparency", "transparent")
+      .neq("status", "cancelled")
+      .order("starts_at");
+
+    if (erroOcupacao) {
+      logger.warn("[agenda.agendamentos] ocupação do Google não veio", {
+        erro: erroOcupacao.message,
+        requestId,
+      });
+    }
+    for (const e of ocupacao ?? []) {
+      const conexao = e.calendar_connections as { user_id: string } | { user_id: string }[] | null;
+      const dono = Array.isArray(conexao) ? conexao[0]?.user_id : conexao?.user_id;
+      externos.push({
+        id: e.id,
+        titulo: "Ocupado",
+        donoId: dono ?? null,
+        iniciaEm: e.starts_at,
+        terminaEm: e.ends_at,
+        situacao: "confirmed",
+        fuso: "",
+        contatoId: null,
+        contatoNome: null,
+        origem: "google_sync",
+      });
+    }
+  }
+
+  return ok([...resultado.agendamentos, ...externos], { requestId });
 }
 
 export async function POST(req: NextRequest): Promise<Response> {
@@ -154,13 +201,6 @@ export async function DELETE(req: NextRequest): Promise<Response> {
   return despachar(req, cancelarSchema, cancelarAgendamentoHandler, 200);
 }
 
-/**
- * O caminho comum dos três verbos: papel, forma, handler, tradução.
- *
- * Um só, e não três cópias, porque a diferença entre eles é o schema e a função
- * — o resto é idêntico, e três cópias divergiriam no primeiro ajuste, que é
- * exatamente o defeito que a extração do handler veio consertar.
- */
 async function despachar<T>(
   req: NextRequest,
   schema: z.ZodType<T>,
@@ -190,9 +230,6 @@ async function despachar<T>(
     const resultado = await handler(
       supabase,
       {
-        // A organização vem do COOKIE VALIDADO, nunca do corpo. Pela tool, ela
-        // vem do contexto do agente — e é por isso que o handler a recebe como
-        // parâmetro em vez de resolvê-la sozinho.
         organization_id: activeOrg.orgId,
         actor: { type: "user", id: user.id },
         requestId,
