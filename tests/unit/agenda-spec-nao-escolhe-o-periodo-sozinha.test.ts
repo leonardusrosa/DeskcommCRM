@@ -152,7 +152,8 @@ describe("spec de agenda não escolhe o período sozinha", () => {
     // Sete em 2026-08-28 — seis foram instâncias da classe no mesmo dia, e a
     // sétima é a dispensada da vitrine. O piso é o que havia quando a guarda nasceu: spec
     // de agenda não some, só aparece.
-    expect(specsDeAgenda().length).toBeGreaterThanOrEqual(7);
+    // Seis no PR #15 (`agente-marca-consulta` adiada com ferramentas MCP da Ana)
+    expect(specsDeAgenda().length).toBeGreaterThanOrEqual(6);
   });
 
   it("toda spec que escolhe dia ou bloco na agenda passa pelo módulo do período", () => {
