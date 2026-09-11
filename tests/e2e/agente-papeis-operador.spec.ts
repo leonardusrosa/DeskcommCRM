@@ -195,7 +195,9 @@ test.describe("A aba do papel que organiza o sistema", () => {
     await pagina.getByTestId("operador-liga").click();
     await expect(pagina.getByTestId("operador-capacidades")).toBeVisible();
 
-    await pagina.getByRole("button", { name: /salvar rascunho/i }).click();
+    const salvarBtn = pagina.getByRole("button", { name: /salvar rascunho/i });
+    await expect(salvarBtn).toBeEnabled();
+    await salvarBtn.click();
     await expect(pagina.getByText(/rascunho v\d+ salvo/i)).toBeVisible({ timeout: 20_000 });
 
     // O RECARREGAMENTO é o teste. Tudo até aqui vive em estado de React; só
@@ -221,7 +223,9 @@ test.describe("A aba do papel que organiza o sistema", () => {
     // faz sentido — não há para onde voltar.
     await expect(pagina.getByTestId("operador-modelo-herdar")).toBeHidden();
 
-    await pagina.getByRole("button", { name: /salvar rascunho/i }).click();
+    const salvarBtn = pagina.getByRole("button", { name: /salvar rascunho/i });
+    await expect(salvarBtn).toBeEnabled();
+    await salvarBtn.click();
     await expect(pagina.getByText(/rascunho v\d+ salvo/i)).toBeVisible({ timeout: 20_000 });
 
     await pagina.reload();
