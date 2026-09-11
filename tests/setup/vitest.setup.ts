@@ -42,6 +42,7 @@ const PLACEHOLDERS: Record<string, string> = {
   NEXT_PUBLIC_SUPABASE_URL: "https://test-placeholder.invalid",
   NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-placeholder-anon-key",
   SUPABASE_SERVICE_ROLE_KEY: "test-placeholder-service-role-key",
+  AI_CRED_AES_KEY: "CPK/M1KcOxACRR9ZIwGwurtEYQ/I2qdgQRT1Q8hBKjs=",
 };
 for (const [chave, valor] of Object.entries(PLACEHOLDERS)) {
   process.env[chave] ??= valor;
