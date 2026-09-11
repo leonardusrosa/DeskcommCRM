@@ -225,6 +225,15 @@ export function AgendaClient({
     [isolada, todos],
   );
 
+  /**
+   * O que é ACIONÁVEL — o que a lista "Próximos" pode oferecer botão para fazer.
+   * Ocupação vinda do Google fica de fora (bloco inerte, não cancelável/remarcável aqui).
+   */
+  const agendamentosAcionaveis = React.useMemo(
+    () => agendamentos.filter((a) => a.origem !== "google_sync"),
+    [agendamentos],
+  );
+
   const passo = visao === "mes" ? 30 : visao === "semana" ? 7 : 1;
   // O PADRÃO de formato também muda de idioma, não só o locale: em português
   // "d 'de' MMMM" tem a preposição escrita à mão dentro do padrão, e em
@@ -576,7 +585,7 @@ export function AgendaClient({
                 const alvo = todos.find((a) => a.id === cancelandoId);
                 if (!alvo) return t("Este agendamento não está mais na lista.");
                 const quem = alvo.quemSeraAtendido ? ` ${t("de")} ${alvo.quemSeraAtendido}` : "";
-                return `${t(alvo.titulo)}${quem}, ${format(new Date(alvo.comeca), t("d 'de' MMMM 'às' HH:mm"), { locale: localeDaData })}.`;
+                return `${alvo.titulo}${quem}, ${format(new Date(alvo.comeca), t("d 'de' MMMM 'às' HH:mm"), { locale: localeDaData })}.`;
               })()}
             </p>
             <label className="block text-xs font-medium text-text-muted" htmlFor="motivo-do-cancelamento">
@@ -618,7 +627,7 @@ export function AgendaClient({
       </Sheet>
 
       <HistoricoDaAgenda
-        agendamentos={agendamentos}
+        agendamentos={agendamentosAcionaveis}
         pessoas={pessoas}
         agora={new Date()}
         className="max-h-[320px]"
