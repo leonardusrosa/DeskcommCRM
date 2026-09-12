@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+import "./classic-themes.module.css";
 
-export type Theme = "light" | "dark" | "system";
-export type ResolvedTheme = "light" | "dark";
+export type Theme = "light" | "dark" | "classic" | "classic-dark" | "system";
+export type ResolvedTheme = "light" | "dark" | "classic" | "classic-dark";
 
 const STORAGE_KEY = "deskcomm-theme";
 
@@ -22,7 +23,7 @@ function readStoredTheme(): Theme {
   if (typeof window === "undefined") return "system";
   try {
     const v = window.localStorage.getItem(STORAGE_KEY);
-    if (v === "light" || v === "dark" || v === "system") return v;
+    if (v === "light" || v === "dark" || v === "classic" || v === "classic-dark" || v === "system") return v;
   } catch {
     // localStorage indisponível (modo privado, sandbox) — segue com default.
   }
@@ -40,14 +41,9 @@ function applyTheme(resolved: ResolvedTheme) {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // Lê do storage no primeiro render do client (não causa hydration mismatch
-  // porque o inline script no layout já setou o data-theme antes do paint).
   const [theme, setThemeState] = React.useState<Theme>(() => readStoredTheme());
-  const [systemTheme, setSystemTheme] = React.useState<ResolvedTheme>(() =>
-    getSystemTheme(),
-  );
+  const [systemTheme, setSystemTheme] = React.useState<ResolvedTheme>(() => getSystemTheme());
 
-  // Listener pra mudanças do prefers-color-scheme.
   React.useEffect(() => {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = (e: MediaQueryListEvent) => {
@@ -59,7 +55,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const resolvedTheme: ResolvedTheme = theme === "system" ? systemTheme : theme;
 
-  // Aplica no DOM sempre que o tema efetivo muda.
   React.useEffect(() => {
     applyTheme(resolvedTheme);
   }, [resolvedTheme]);
@@ -75,9 +70,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const toggle = React.useCallback(() => {
     setThemeState((current) => {
-      const currentResolved =
-        current === "system" ? getSystemTheme() : current;
-      const next: Theme = currentResolved === "dark" ? "light" : "dark";
+      const currentResolved = current === "system" ? getSystemTheme() : current;
+      const next: Theme =
+        currentResolved === "dark"
+          ? "classic"
+          : currentResolved === "classic"
+            ? "classic-dark"
+            : currentResolved === "classic-dark"
+              ? "light"
+              : "dark";
       try {
         window.localStorage.setItem(STORAGE_KEY, next);
       } catch {
