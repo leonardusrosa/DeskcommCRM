@@ -3,7 +3,15 @@ import { describe, expect, it } from "vitest";
 import { tenantSchema } from "@/lib/schemas/settings";
 
 describe("updateTenant — Semântica de omissão, null e string em business_profile_description", () => {
-  const currentSettings = {
+  const currentSettings: {
+    branding: { app_name: string };
+    lost_reasons_extra: string[];
+    business_profile: {
+      description: string | null;
+      industry: string;
+      website: string;
+    };
+  } = {
     branding: { app_name: "Deskcomm" },
     lost_reasons_extra: ["preço"],
     business_profile: {
