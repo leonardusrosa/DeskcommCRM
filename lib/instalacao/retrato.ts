@@ -18,7 +18,7 @@ export interface RetratoDaInstalacao {
   inteligencia: {
     provedor: string;
     rotulo: string;
-    origemDaChave: "org" | "nenhuma";
+    origemDaChave: "org" | "instalacao" | "nenhuma";
     /**
      * Há chave cadastrada que o provedor ainda não confirmou. NÃO é `origemDaChave`
      * — o turno não consegue usá-la ainda —, mas também não é "nenhuma": dizer
@@ -147,13 +147,13 @@ export async function lerRetratoDaInstalacao(
 
   const origemDaChave: RetratoDaInstalacao["inteligencia"]["origemDaChave"] = credencial
     ? "org"
-    : "nenhuma";
+    : ambiente.chavesDeProvedor[provider] === true
+      ? "instalacao"
+      : "nenhuma";
 
   const capRaciocinio = modeloCurado
     ? obterCapacidadesDeRaciocinio(provider, modeloCurado)
     : { supports_reasoning: false, reasoning_efforts_supported: [], reasoning_effort_default: null };
-
-
 
   return {
     empresa: {
@@ -177,7 +177,7 @@ export async function lerRetratoDaInstalacao(
       suportaRaciocinio: capRaciocinio.supports_reasoning,
       // Chave sem modelo no catálogo não publica agente — é o estado de uma
       // instalação nova em OpenRouter, cujo catálogo só chega no cron diário.
-      prontaParaPublicar: origemDaChave === "org" && Boolean(modeloCurado),
+      prontaParaPublicar: origemDaChave !== "nenhuma" && Boolean(modeloCurado),
     },
     whatsapp: {
       transporteApontado: ambiente.transporteDeWhatsapp.apontado && ambiente.transporteDeWhatsapp.comChave,

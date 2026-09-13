@@ -226,7 +226,7 @@ export function TrocarCerebroDialog({
                   const toolsSuffix = m.supports_tools ? " (Tools ✓)" : "";
                   return (
                     <option key={m.model_id} value={m.model_id}>
-                      {(m.display_name || m.model_id) + freeSuffix + toolsSuffix}
+                      {(m.display_name?.trim() ? m.display_name : m.model_id) + freeSuffix + toolsSuffix}
                     </option>
                   );
                 })}

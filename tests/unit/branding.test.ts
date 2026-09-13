@@ -245,6 +245,48 @@ const MARCA_CONGELADA: Record<string, EntradaDeMarca> = {
       "User-Agent exigido pela Nuvemshop, que identifica a aplicação registrada na plataforma deles. Trocar pelo nome do revendedor descreveria uma aplicação que não existe lá",
     marcas: ["deskcommcrm"],
   },
+  "lib/agenda/google/evento.ts": {
+    categoria: "PROTOCOLO",
+    motivo:
+      "sufixo do iCalUID e prefixo das extendedProperties que GRAVAMOS dentro do Google Calendar do cliente.",
+    marcas: ["deskcomm", "deskcomm.app"],
+  },
+  
+  "lib/agent-engine/edge/llm/providers.ts": {
+    categoria: "PROTOCOLO",
+    motivo: "Header de identificacao e user-agent do cliente HTTP para chamadas do modelo LLM.",
+    marcas: ["deskcommcrm"],
+  },
+  "lib/ai/catalogo/opencode-zen.ts": {
+    categoria: "PROTOCOLO",
+    motivo: "Header de identificacao e user-agent do catalogo de modelos da API OpenCode Zen.",
+    marcas: ["deskcommcrm"],
+  },
+  "lib/ai/gateway-binding.ts": {
+    categoria: "PROTOCOLO",
+    motivo: "Header de identificacao e user-agent do cliente HTTP no binding do AI Gateway.",
+    marcas: ["deskcommcrm"],
+  },
+  "lib/ai/gateway.ts": {
+    categoria: "PROTOCOLO",
+    motivo: "Header de identificacao e user-agent do cliente HTTP nas chamadas do gateway de IA.",
+    marcas: ["deskcommcrm"],
+  },
+  "lib/ai/provider-validators.ts": {
+    categoria: "PROTOCOLO",
+    motivo: "Header de identificacao e user-agent na validacao de credenciais de provedor de IA.",
+    marcas: ["deskcommcrm"],
+  },
+  "lib/ai/runtime/agent.ts": {
+    categoria: "PROTOCOLO",
+    motivo: "Header de identificacao e user-agent nas chamadas de execucao do runtime do agente.",
+    marcas: ["deskcommcrm"],
+  },
+  "lib/instalacao/prova-de-credito.ts": {
+    categoria: "PROTOCOLO",
+    motivo: "Header de identificacao e user-agent na prova de credito e saldo da instalacao.",
+    marcas: ["deskcommcrm"],
+  },
 
   // ─── INFRA — cookie/storage/contêiner. Renomear desloga ou perde estado. ───
   "app/layout.tsx": {

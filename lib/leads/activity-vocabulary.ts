@@ -39,6 +39,16 @@ export type ActivityType =
   | "reactivation_dismissed"
   | "reactivation_expired"
   | "followup_scheduled"
+  // DECISÃO 22 — a agenda na timeline do lead. `appointment_completed` e
+  // `appointment_no_show` são o PAR que a DECISÃO 17 exige: sem os dois,
+  // "aconteceu" e "faltou" não chegam à timeline, e o Radar não distingue lead
+  // atendido de lead que sumiu. A lista-espelho vive em `lib/agenda/tipos.ts`
+  // (`ATIVIDADES_DA_AGENDA`), e o compilador amarra as duas lá.
+  | "appointment_scheduled"
+  | "appointment_rescheduled"
+  | "appointment_cancelled"
+  | "appointment_completed"
+  | "appointment_no_show"
   | "followup_cancelled"
   /**
    * As quatro formas de INTERVIR num follow-up em andamento, sem matá-lo.
@@ -58,6 +68,23 @@ export type ActivityType =
    * justamente esse silêncio que a automação de 1º toque precisa respeitar.
    */
   | "consent_declined"
+  /**
+   * Classificação inicial (ver `lib/leads/classificacao-inicial.ts`) bateu um
+   * dos 3 motivos exatos de desqualificação. Igual a `consent_declined`: o
+   * "não" é sinal — sem esta linha, um lead que some do funil comercial de
+   * primeiro toque parece esquecido, não desqualificado por regra.
+   */
+  | "lead_disqualified"
+  /**
+   * Classificação inicial pediu olho humano antes de classificar. São TRÊS
+   * motivos possíveis — conflito de identidade (o nome do envio diverge do já
+   * gravado no contato casado por telefone/e-mail), sinal de spam, ou
+   * contradição entre o que a empresa diz investir hoje e o que diz ser
+   * viável. Qual deles foi vai no `reason` da atividade; o rótulo não nomeia
+   * um só, porque nomear um dos três seria descrever errado os outros dois.
+   * Sem linha, ninguém sabe que o lead está parado esperando alguém decidir.
+   */
+  | "lead_needs_review"
   /**
    * A TROCA DE COMANDO ENTRE PESSOAS. A ida e a volta IA↔humano já estavam aqui
    * (`handoff_triggered`/`handoff_resolved`); assumir, transferir e liberar não
@@ -116,6 +143,16 @@ export const ACTIVITY_LABELS: Record<ActivityType, string> = {
   // quê — e é justamente o cancelamento que o agente precisa enxergar ao
   // retomar, para não repropor o que uma pessoa já desmarcou.
   followup_scheduled: "Retorno agendado",
+  // ⚠️ "Agendamento", não "Consulta". O produto é MULTI-NICHO por design:
+  // imobiliária faz visita, agência faz call, obra faz vistoria. "Consulta
+  // marcada" seria o vocabulário de UM nicho imposto aos outros quatro, que é o
+  // que o `VISION.md` proíbe. Quem quiser a palavra do próprio ramo tem o
+  // `vocabulary` do pipeline para isso — o rótulo padrão fica neutro.
+  appointment_scheduled: "Agendamento marcado",
+  appointment_rescheduled: "Agendamento remarcado",
+  appointment_cancelled: "Agendamento cancelado",
+  appointment_completed: "Agendamento realizado",
+  appointment_no_show: "Não compareceu",
   followup_cancelled: "Retorno cancelado",
   // PAUSAR NÃO É CANCELAR, e a diferença importa para quem pega o atendimento
   // depois: cancelado é decisão fechada, pausado é o fluxo parado esperando uma
@@ -141,6 +178,8 @@ export const ACTIVITY_LABELS: Record<ActivityType, string> = {
   // tela — e o dossiê de um negócio fechado terminava sem dizer que fechou.
   demand_closed: "Demanda encerrada",
   consent_declined: "Consentimento de contato recusado no formulário",
+  lead_disqualified: "Desqualificado na triagem inicial",
+  lead_needs_review: "Aguardando revisão humana",
   // Rótulos com OBJETO, nunca verbo nu: "Liberou" sozinho não diz o quê, e numa
   // clínica "liberar" é o que se faz com um exame. O resto do arquivo já segue
   // essa régua ("Retorno agendado", "Demanda encerrada").
@@ -199,10 +238,11 @@ export function actorShape(actorKind: string | null): ActivityActorShape {
 export function actorName(
   actorKind: string | null,
   nomes: { agente?: string | null; usuario?: string | null } = {},
+  t: (texto: string) => string = (texto) => texto,
 ): string {
   if (actorKind === "ai" && nomes.agente) return nomes.agente;
   if ((actorKind === "user" || actorKind === "contact") && nomes.usuario) return nomes.usuario;
-  return actorLabel(actorKind);
+  return t(actorLabel(actorKind));
 }
 
 /**

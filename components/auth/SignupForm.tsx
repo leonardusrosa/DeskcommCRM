@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signUp } from "@/app/actions/auth/signUp";
+import { GoogleLogo } from "@/lib/ui/icons";
+import { createClient } from "@/lib/supabase/browser";
 
 /**
  * Convite em curso: a conta está sendo criada para ACEITAR um convite, não para
@@ -30,6 +32,31 @@ export function SignupForm({ convite }: { convite?: ConviteDoSignup }) {
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const handleGoogleSignIn = async () => {
+    setServerError(null);
+    setGoogleLoading(true);
+    try {
+      const supabase = createClient();
+      const origin =
+        process.env.NEXT_PUBLIC_APP_URL ||
+        (typeof window !== "undefined" ? window.location.origin : "");
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${origin}/auth/confirm`,
+        },
+      });
+      if (error) {
+        setServerError(error.message);
+        setGoogleLoading(false);
+      }
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : "Erro ao conectar com Google");
+      setGoogleLoading(false);
+    }
+  };
 
   const {
     register,
@@ -157,8 +184,28 @@ export function SignupForm({ convite }: { convite?: ConviteDoSignup }) {
           {serverError}
         </div>
       )}
-      <Button type="submit" className="w-full" disabled={isPending}>
+      <Button type="submit" className="w-full" disabled={isPending || googleLoading}>
         {isPending ? "Criando conta..." : "Criar conta"}
+      </Button>
+
+      <div className="relative my-2">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">ou</span>
+        </div>
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full"
+        disabled={isPending || googleLoading}
+        onClick={handleGoogleSignIn}
+      >
+        <GoogleLogo size={16} weight="bold" className="mr-2 shrink-0" aria-hidden />
+        {googleLoading ? "Conectando..." : "Continuar com Google"}
       </Button>
     </form>
   );

@@ -11,8 +11,8 @@ import { obterCapacidadesDeRaciocinio } from "./catalogo";
 export interface OpcoesDeExecucaoDeRaciocinio {
   requestedEffort: NivelDeRaciocinio | null;
   effectiveEffort: NivelDeRaciocinio | null;
-  providerOptions?: Record<string, Record<string, any>>;
-  extraBody?: Record<string, any>;
+  providerOptions?: Record<string, Record<string, unknown>>;
+  extraBody?: Record<string, unknown>;
 }
 
 const BUDGET_ANTHROPIC: Record<NivelDeRaciocinio, number> = {

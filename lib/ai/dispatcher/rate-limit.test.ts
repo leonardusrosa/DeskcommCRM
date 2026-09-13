@@ -32,7 +32,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 describe("contador em memória", () => {
   beforeEach(() => {
     vi.resetModules();
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date("2026-08-10T12:00:00Z"));
   });
 

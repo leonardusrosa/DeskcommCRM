@@ -14,7 +14,6 @@ import { aiAgentDefaultSchema, type PromptTemplate } from "@/lib/schemas/onboard
 import { capacidadesPadraoDoOnboarding } from "@/lib/ai/agents/capacidades-padrao";
 import { publicarMemoriaDaOrg } from "@/lib/ai/memoria-da-org";
 import { escolherModeloDoProvedor } from "@/lib/ai/agents/escolher-modelo";
-import { provedorDaOrg } from "@/lib/instalacao/retrato";
 import { chaveDePlataforma } from "@/lib/ai/runtime/agent";
 import {
   requireOnboardingCtx,
@@ -103,7 +102,9 @@ type PublishOutcome =
  * `settings` é jsonb livre: leitura defensiva, igual à do agent-engine.
  */
 function provedorDaInstalacao(settings: unknown): string {
-  return provedorDaOrg(settings);
+  const llm = (settings as { llm?: unknown } | null)?.llm;
+  const provider = (llm as { provider?: unknown } | null | undefined)?.provider;
+  return typeof provider === "string" && provider.trim() !== "" ? provider : "anthropic";
 }
 
 function mensagemDoErro(err: unknown): string {
@@ -179,21 +180,13 @@ async function publishFirstVersion(
     .eq("provider", provider)
     .is("deprecated_at", null);
 
-  const llmSettings = (org?.settings as { llm?: { default_model?: string } } | null)?.llm;
-  const modeloEscolhido = llmSettings?.default_model;
-  let modelId: string;
-
-  if (modeloEscolhido && modelos?.some((m) => m.model_id === modeloEscolhido)) {
-    modelId = modeloEscolhido;
-  } else {
-    const escolha = escolherModeloDoProvedor(
-      (modelos ?? []) as Parameters<typeof escolherModeloDoProvedor>[0],
-    );
-    if (!escolha.escolhido) {
-      return { published: false, reason: "no_model", provider, motivo: escolha.motivo };
-    }
-    modelId = escolha.modelId;
+  const escolha = escolherModeloDoProvedor(
+    (modelos ?? []) as Parameters<typeof escolherModeloDoProvedor>[0],
+  );
+  if (!escolha.escolhido) {
+    return { published: false, reason: "no_model", provider, motivo: escolha.motivo };
   }
+  const modelId = escolha.modelId;
 
   // "Em que negócios ele pode mexer". Toda organização nasce com um funil de
   // entrada, criado por gatilho no INSERT de `organizations`. Sem preencher
@@ -253,7 +246,6 @@ async function publishFirstVersion(
       credential_id: credentialId,
       tool_ids: capacidadesPadraoDoOnboarding(),
       pipeline_ids: pipelineIds,
-      split_messages: true,
       channel_session_id: canal.id,
       status: "published",
       published_at: new Date().toISOString(),

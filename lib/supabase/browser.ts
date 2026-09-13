@@ -4,7 +4,7 @@
  * Use este em qualquer arquivo com "use client". NUNCA em Server Components,
  * Route Handlers, ou middleware — eles devem usar `lib/supabase/server.ts`.
  *
- * Sessão persiste via cookie SameSite=Strict gerenciado pelo @supabase/ssr.
+ * Sessão real vive no cookie do server; cliente browser usa SameSite=Lax para PKCE.
  */
 
 import { createBrowserClient } from "@supabase/ssr";
@@ -33,9 +33,13 @@ export function createClient() {
 
   _client = createBrowserClient(url, key, {
     // D-01.01: cookie name canônico alinhado ao middleware/server.
+    // SameSite=Lax (padrão do @supabase/ssr) permite que o verifier PKCE
+    // sobreviva ao hop cross-site do OAuth do Google (accounts.google.com →
+    // localhost:3000/auth/confirm). O cookie de sessão real (HttpOnly+Strict)
+    // vive no server client (lib/supabase/server.ts) e não é afetado aqui.
     cookieOptions: {
       name: "sb-deskcomm-auth",
-      sameSite: "strict",
+      sameSite: "lax",
       path: "/",
     },
   });

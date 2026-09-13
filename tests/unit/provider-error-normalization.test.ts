@@ -75,15 +75,14 @@ describe("Provider Error Normalization & Friendly Messages", () => {
     expect(serverRes.titulo).toBe("Provedor temporariamente indisponível");
   });
 
-  it("7. classificarResposta in prova-de-credito delegates to normalized errors", () => {
+  it("7. classificarResposta in prova-de-credito delegates to canonical normalized errors", () => {
     const rawZenError = '{"type":"error","error":{"type":"FreeUsageLimitError","message":"Rate limit exceeded."}}';
-    const prova = classificarResposta(429, rawZenError, "mimo-v2.5-free");
+    const prova = classificarResposta(429, rawZenError);
 
     expect(prova.ok).toBe(false);
     if (!prova.ok) {
-      expect(prova.codigo).toBe("FREE_QUOTA_EXHAUSTED");
-      expect(prova.titulo).toBe("Limite gratuito atingido");
-      expect(prova.acaoSugerida).toBe("trocar_modelo");
+      expect(prova.codigo).toBe("limite_ou_saldo");
+      expect(prova.httpStatus).toBe(429);
     }
   });
 });

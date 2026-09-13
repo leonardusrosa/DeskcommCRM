@@ -96,7 +96,6 @@ export async function testarConexaoIa(
     return {
       ok: false,
       categoria: prova.codigo,
-      titulo: prova.titulo,
       erro: prova.mensagem,
     };
   }

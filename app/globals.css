@@ -141,6 +141,15 @@
   --input: var(--color-border);
   --ring: var(--color-accent-500);
   --radius: var(--radius-md);
+  /* ---- Agenda · cor de pessoa (8 trilhas) ------------------------------ */
+  --agenda-pessoa-1: #ac4d40;   /* telha */
+  --agenda-pessoa-2: #bd7c20;   /* âmbar */
+  --agenda-pessoa-3: #7e6f01;   /* oliva */
+  --agenda-pessoa-4: #11a19b;   /* turquesa */
+  --agenda-pessoa-5: #0b7a9a;   /* azul */
+  --agenda-pessoa-6: #608bda;   /* índigo */
+  --agenda-pessoa-7: #7b5bad;   /* violeta */
+  --agenda-pessoa-8: #cc77b1;   /* framboesa */
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -236,6 +245,15 @@
   --border: var(--color-border);
   --input: var(--color-border);
   --ring: var(--color-accent-500);
+  /* ---- Agenda · cor de pessoa (espelho do :root) ----------------------- */
+  --agenda-pessoa-1: #ac4d40;   /* telha */
+  --agenda-pessoa-2: #bd7c20;   /* âmbar */
+  --agenda-pessoa-3: #7e6f01;   /* oliva */
+  --agenda-pessoa-4: #11a19b;   /* turquesa */
+  --agenda-pessoa-5: #0b7a9a;   /* azul */
+  --agenda-pessoa-6: #608bda;   /* índigo */
+  --agenda-pessoa-7: #7b5bad;   /* violeta */
+  --agenda-pessoa-8: #cc77b1;   /* framboesa */
 }
 
 [data-theme="dark"] {
@@ -324,6 +342,15 @@
   --border: var(--color-border);
   --input: var(--color-border);
   --ring: var(--color-accent-400);
+  /* ---- Agenda · cor de pessoa (tema escuro) ---------------------------- */
+  --agenda-pessoa-1: #f89080;
+  --agenda-pessoa-2: #ca8931;
+  --agenda-pessoa-3: #d1bf55;
+  --agenda-pessoa-4: #0cafa8;
+  --agenda-pessoa-5: #4ccffb;
+  --agenda-pessoa-6: #6c97e7;
+  --agenda-pessoa-7: #be9ef6;
+  --agenda-pessoa-8: #cc77b1;
 }
 
 @layer base {
@@ -496,5 +523,90 @@
        Ele dura os PULSE_MS inteiros (useBoard.ts), NÃO os 320ms da animação:
        a diferença entre os dois números é deliberada e está explicada lá. */
     border-color: var(--color-accent);
+  }
+}
+
+/* ---- Agenda · a coluna de horários que desliza para dentro ----------------
+   O painel de marcação tem três tempos (escolher dia → escolher horário →
+   confirmar) e a coluna de horários NÃO existe no primeiro. Quando o dia é
+   escolhido, ela entra pela direita e o painel cresce — é isso que dá a
+   sensação de "abriu" em vez de "trocou de tela", e é o único motivo pelo qual
+   um painel de marcação parece fluido em vez de parecer um formulário de três
+   páginas.
+
+   Por que `width` e `grid-template-columns` não: animar a coluna do grid
+   funciona em Chrome recente e falha calado em Safari, e este produto roda no
+   celular do dono da clínica. `width` + `overflow: hidden` anima em tudo.
+
+   `tailwindcss-animate` NÃO está instalado neste repo (`plugins: []` no
+   tailwind.config.ts) — `animate-in`/`slide-in-from-*` são classes que não
+   existem e falham em silêncio. Os seis Sheets em produção abrem sem transição
+   nenhuma por causa disso. Daí este bloco ser CSS à mão, no modelo do
+   `.card-pulse` acima, que é o precedente local. */
+.agenda-coluna-horarios {
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateX(8px);
+  transition:
+    width var(--duration-base) var(--ease-out),
+    opacity var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-out);
+}
+
+.agenda-coluna-horarios[data-aberta="true"] {
+  width: var(--agenda-largura-horarios, 240px);
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* ⚠️ NO CELULAR A COLUNA OCUPA TUDO — e isto era só um comentário até agora.
+   `PainelDeMarcacao.tsx:184` já dizia "no celular a coluna ocupa tudo" como
+   justificativa para o `min-width` do corpo. O CSS não implementava: a coluna
+   abria com 240px fixos e `shrink-0` em QUALQUER largura, e numa tela de 390px
+   o painel passava 67px da borda.
+
+   O sintoma não era barra de rolagem: `overflow-x: hidden` no `html` e no
+   `body` cortava o excedente, então a coluna de horários simplesmente sumia
+   pela direita — sem rolagem, sem aviso, sem como alcançá-la. E a asserção que
+   deveria pegar isso media `documentElement.scrollWidth`, que o mesmo
+   `overflow-x: hidden` grampeia: o gate dava zero enquanto o usuário perdia a
+   metade da tela em que se escolhe o horário.
+
+   Trocada a medida para `body.scrollWidth`, o estouro apareceu na primeira
+   execução. */
+/* ⚠️ O CORTE MUDOU DE 767 PARA 1023, e é o conserto do defeito da v1.8.0.
+   As três colunas do painel somam 980px, e entre 768 e 1023 o Sheet que as
+   hospeda tem 768: a coluna de horários ficava fora da tela — medido em 1280,
+   só 42 dos 280px apareciam. Empilhada, ela ocupa a largura toda e cabe. */
+@media (max-width: 1023px) {
+  .agenda-coluna-horarios[data-aberta="true"] {
+    width: 100%;
+  }
+}
+
+/* A borda só existe quando a coluna existe. Deixá-la no estado fechado
+   desenharia um risco vertical de 1px no meio de um painel sem coluna
+   nenhuma — e daria à coluna "de largura zero" um retângulo de 1px de
+   largura, que é uma medida difícil de explicar a quem lê o teste. */
+/* A borda-esquerda só existe quando a coluna É uma coluna. Empilhada, ela
+   desenharia um risco vertical no meio de uma seção que ocupa a largura toda.
+   Por isso as duas regras moram no MESMO breakpoint em que o painel vira
+   `flex-row` — separá-las foi o que deixou uma borda de coluna numa seção
+   empilhada entre 768 e 1023. */
+@media (min-width: 1024px) {
+  .agenda-coluna-horarios[data-aberta="true"] {
+    width: var(--agenda-largura-horarios-lg, 280px);
+    border-left: 1px solid var(--color-border);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* O destino é o MESMO — só chega sem o percurso. Esconder a coluna, ou
+     entregá-la por um caminho diferente, faria de "movimento reduzido" uma
+     versão pior do produto em vez de uma versão calma dele. */
+  .agenda-coluna-horarios {
+    transition: none;
+    transform: none;
   }
 }
