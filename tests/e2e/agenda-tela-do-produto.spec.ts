@@ -20,6 +20,8 @@ import { lerCreds, loginComoAdmin } from "./helpers/login-admin";
  * gate para isso no nível do registro, e aqui ela é exercida pelo clique.
  */
 const ESPERA = 60_000;
+const FUSO_AGENDA_E2E = "America/Sao_Paulo"; // contrato com scripts/seed-e2e-agenda.ts
+
 test.describe.configure({ mode: "serial", timeout: 180_000 });
 
 test.describe("a Agenda como o dono do produto a usa", () => {
@@ -180,7 +182,7 @@ test.describe("a Agenda como o dono do produto a usa", () => {
     // Agenda, corretamente, ainda mostrava a régua no horário do tenant.
     const hora = Number(
       new Intl.DateTimeFormat("en-US", {
-        timeZone: "America/Sao_Paulo",
+        timeZone: FUSO_AGENDA_E2E,
         hour: "2-digit",
         hourCycle: "h23",
       }).format(new Date()),
