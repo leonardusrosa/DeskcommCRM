@@ -20,6 +20,7 @@ import { lerCreds, loginComoAdmin } from "./helpers/login-admin";
  * gate para isso no nível do registro, e aqui ela é exercida pelo clique.
  */
 const ESPERA = 60_000;
+
 test.describe.configure({ mode: "serial", timeout: 180_000 });
 
 test.describe("a Agenda como o dono do produto a usa", () => {
@@ -173,14 +174,16 @@ test.describe("a Agenda como o dono do produto a usa", () => {
       ).toHaveAttribute("aria-pressed", "true");
     }
 
-    // A régua do agora só existe quando o instante cabe na faixa desenhada
-    // (07h–21h). Fora dela a ausência é CORRETA, e exigir presença faria a spec
-    // ficar vermelha de madrugada — que é o defeito que este repo já pagou nos
-    // invariantes de turno.
-    const hora = new Date().getHours();
+    // A régua do agora usa o mesmo `Date` do Chromium que o componente usa.
+    // Medir no processo Node mistura o fuso do runner com o relógio da página e
+    // pode inverter a expectativa perto da borda da janela desenhada (07:00–22:00).
+    const minutosAgoraNoBrowser = await page.evaluate(() => {
+      const agora = new Date();
+      return agora.getHours() * 60 + agora.getMinutes();
+    });
     const regua = page.getByTestId("regua-do-agora");
-    if (hora >= 7 && hora <= 21) {
-      await expect(regua, "dentro da faixa 07h–21h e sem régua do agora").toBeVisible();
+    if (minutosAgoraNoBrowser >= 7 * 60 && minutosAgoraNoBrowser <= 22 * 60) {
+      await expect(regua, "dentro da faixa 07h–22h e sem régua do agora").toBeVisible();
     } else {
       await expect(regua, "fora da faixa e a régua apareceu mesmo assim").toHaveCount(0);
     }
