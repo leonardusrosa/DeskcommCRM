@@ -174,10 +174,17 @@ test.describe("a Agenda como o dono do produto a usa", () => {
     }
 
     // A régua do agora só existe quando o instante cabe na faixa desenhada
-    // (07h–21h). Fora dela a ausência é CORRETA, e exigir presença faria a spec
-    // ficar vermelha de madrugada — que é o defeito que este repo já pagou nos
-    // invariantes de turno.
-    const hora = new Date().getHours();
+    // (07h–21h). O seed da Agenda fixa America/Sao_Paulo; usar getHours() aqui
+    // mede o fuso do runner (UTC no GitHub Actions), não o relógio que o produto
+    // está desenhando. À noite isso fazia o teste esperar ausência enquanto a
+    // Agenda, corretamente, ainda mostrava a régua no horário do tenant.
+    const hora = Number(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Sao_Paulo",
+        hour: "2-digit",
+        hourCycle: "h23",
+      }).format(new Date()),
+    );
     const regua = page.getByTestId("regua-do-agora");
     if (hora >= 7 && hora <= 21) {
       await expect(regua, "dentro da faixa 07h–21h e sem régua do agora").toBeVisible();
