@@ -40,8 +40,9 @@ export function SignupForm({ convite }: { convite?: ConviteDoSignup }) {
     try {
       const supabase = createClient();
       const origin =
-        process.env.NEXT_PUBLIC_APP_URL ||
-        (typeof window !== "undefined" ? window.location.origin : "");
+        typeof window !== "undefined"
+          ? window.location.origin
+          : "";
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
