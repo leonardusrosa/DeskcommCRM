@@ -30,6 +30,12 @@ export interface PmsMappingUpsertResult {
 }
 
 export interface PmsMappingStore {
+  getByExternalId(
+    tenantId: string,
+    provider: PmsProviderName,
+    entityType: "contact" | "appointment",
+    externalId: string,
+  ): PmsExternalMappingRecord | null | Promise<PmsExternalMappingRecord | null>;
   upsert(params: PmsMappingUpsertParams): PmsMappingUpsertResult | Promise<PmsMappingUpsertResult>;
 }
 
@@ -64,7 +70,7 @@ export class PmsMappingRepository implements PmsMappingStore {
     provider: PmsProviderName,
     entityType: "contact" | "appointment",
     externalId: string,
-    externalVersion: string
+    externalVersion: string,
   ): string {
     return idempotencyKey({
       tenantId,
@@ -94,6 +100,7 @@ export class PmsMappingRepository implements PmsMappingStore {
         params.lastExternalUpdateAt > existing.lastSyncedAt;
       const updated: PmsExternalMappingRecord = {
         ...existing,
+        deskcommId: params.deskcommId,
         externalVersion: params.externalVersion,
         checksum,
         lastExternalUpdateAt: params.lastExternalUpdateAt,
@@ -126,7 +133,7 @@ export class PmsMappingRepository implements PmsMappingStore {
     tenantId: string,
     provider: PmsProviderName,
     entityType: "contact" | "appointment",
-    externalId: string
+    externalId: string,
   ): PmsExternalMappingRecord | null {
     return this.localStore.get(`${tenantId}::${provider}::${entityType}::${externalId}`) || null;
   }
@@ -138,7 +145,7 @@ export class PmsMappingRepository implements PmsMappingStore {
   public resolveConflict(
     tenantId: string,
     naturalKey: string,
-    _resolution: "accept_pms" | "accept_deskcomm"
+    _resolution: "accept_pms" | "accept_deskcomm",
   ): PmsExternalMappingRecord | null {
     const existing = this.localStore.get(naturalKey);
     if (!existing) return null;
@@ -162,31 +169,48 @@ export class PmsMappingRepository implements PmsMappingStore {
 
 /** Runtime store. Service-role access is always explicitly scoped by organization_id. */
 export class SupabasePmsMappingRepository implements PmsMappingStore {
-  public async upsert(params: PmsMappingUpsertParams): Promise<PmsMappingUpsertResult> {
-    const client = createAdminClient();
-    const { data: existing, error: readError } = await client
+  public async getByExternalId(
+    tenantId: string,
+    provider: PmsProviderName,
+    entityType: "contact" | "appointment",
+    externalId: string,
+  ): Promise<PmsExternalMappingRecord | null> {
+    const { data, error } = await createAdminClient()
       .from("pms_external_mappings")
       .select("*")
-      .eq("organization_id", params.tenantId)
-      .eq("provider", params.provider)
-      .eq("entity_type", params.entityType)
-      .eq("external_id", params.externalId)
+      .eq("organization_id", tenantId)
+      .eq("provider", provider)
+      .eq("entity_type", entityType)
+      .eq("external_id", externalId)
       .maybeSingle();
+    if (error) throw new Error(`[PMS Mapping] Read failed: ${error.message}`);
+    return data ? toRecord(data) : null;
+  }
 
-    if (readError) throw new Error(`[PMS Mapping] Read failed: ${readError.message}`);
+  public async upsert(params: PmsMappingUpsertParams): Promise<PmsMappingUpsertResult> {
+    const client = createAdminClient();
+    const existingRecord = await this.getByExternalId(
+      params.tenantId,
+      params.provider,
+      params.entityType,
+      params.externalId,
+    );
 
     const checksum = idempotencyKey(params);
     const now = new Date().toISOString();
-    if (existing && existing.external_version === params.externalVersion && existing.sync_status === "synced") {
-      return { record: toRecord(existing), isDuplicate: true, conflictDetected: false };
+    if (
+      existingRecord &&
+      existingRecord.externalVersion === params.externalVersion &&
+      existingRecord.syncStatus === "synced"
+    ) {
+      return { record: existingRecord, isDuplicate: true, conflictDetected: false };
     }
 
-    const existingRecord = existing ? toRecord(existing) : null;
     const concurrent = Boolean(
       existingRecord &&
         params.deskcommUpdatedAt &&
         params.deskcommUpdatedAt > existingRecord.lastSyncedAt &&
-        params.lastExternalUpdateAt > existingRecord.lastSyncedAt
+        params.lastExternalUpdateAt > existingRecord.lastSyncedAt,
     );
 
     const row = {
