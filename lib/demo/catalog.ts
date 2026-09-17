@@ -39,7 +39,7 @@ export const DENTAL_DEMO_CATALOG: DentalDemoCatalogCard[] = [
     countryName: "España",
     flag: "🇪🇸",
     title: "Clínica Dental — España",
-    tagline: "Atención, presupuestos comerciales y citas en un único flujo",
+    tagline: "Atención, oportunidades comerciales y citas en un único flujo",
     description:
       "Entorno sintético para enseñar cómo recepción y especialistas comparten conversaciones, oportunidades y agenda sin convertir Deskcomm en historia clínica.",
     highlights: ["Madrid · EUR · +34", "Equipo multi-especialista", "Datos 100% sintéticos"],
