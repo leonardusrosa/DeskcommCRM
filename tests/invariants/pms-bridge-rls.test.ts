@@ -172,7 +172,13 @@ describe("PMS bridge — RLS and credential boundary", () => {
     ).toBe(0);
   });
 
-  it("tenant users cannot mutate worker-owned mappings or appointment mirrors", () => {
+  it("tenant users cannot mutate service-owned PMS state directly", () => {
+    expect(
+      queryFailsAs(
+        ADMIN_A,
+        `update public.pms_connections set appointment_write_enabled=true where organization_id='${ORG_A}'; select 0;`,
+      ),
+    ).toBe(true);
     expect(
       queryFailsAs(
         ADMIN_A,
