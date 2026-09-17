@@ -1,9 +1,6 @@
 /**
- * lib/integrations/pms/credentials.ts
- *
- * Secure server-side credential management for PMS providers.
- * Uses AES-256-GCM encryption at rest. Plaintext credentials are NEVER
- * returned to browser clients, logged, or included in audit events.
+ * Secure server-side PMS credential management.
+ * Production/runtime encryption fails closed when no 32-byte base64 key is configured.
  */
 
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
@@ -11,28 +8,26 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 const KEY_LENGTH_BYTES = 32;
 const IV_LENGTH_BYTES = 12;
 const TAG_LENGTH_BYTES = 16;
+const TEST_KEY_B64 = "K7gNU3sdo+OL0wNhqoVWhr3g6s1xYv72olP16NWD2yE=";
 
 let cachedKey: Buffer | null = null;
 
 function getEncryptionKey(): Buffer {
   if (cachedKey) return cachedKey;
 
-  const raw =
-    process.env.PMS_CRED_AES_KEY ||
-    process.env.AI_CRED_AES_KEY ||
-    // Safe deterministic development/test fallback key (32 bytes base64)
-    "K7gNU3sdo+OL0wNhqoVWhr3g6s1xYv72olP16NWD2yE=";
+  const configured = process.env.PMS_CRED_AES_KEY || process.env.AI_CRED_AES_KEY;
+  const raw = configured || (process.env.NODE_ENV === "test" ? TEST_KEY_B64 : undefined);
 
-  let buf: Buffer;
-  try {
-    buf = Buffer.from(raw, "base64");
-  } catch {
-    throw new Error("[PMS Crypto] Invalid PMS_CRED_AES_KEY: malformed base64.");
+  if (!raw) {
+    throw new Error(
+      "[PMS Crypto] Missing PMS_CRED_AES_KEY. Runtime credential encryption is fail-closed."
+    );
   }
 
+  const buf = Buffer.from(raw, "base64");
   if (buf.length !== KEY_LENGTH_BYTES) {
     throw new Error(
-      `[PMS Crypto] Key must be exactly ${KEY_LENGTH_BYTES} bytes. Found: ${buf.length}`
+      `[PMS Crypto] Key must be exactly ${KEY_LENGTH_BYTES} bytes after base64 decoding. Found: ${buf.length}`
     );
   }
 
@@ -55,17 +50,14 @@ export function encryptPmsSecret(plaintext: string): EncryptedPmsCredential {
   const key = getEncryptionKey();
   const iv = randomBytes(IV_LENGTH_BYTES);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
-
   const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
-
-  const last4 = plaintext.length >= 4 ? plaintext.slice(-4) : plaintext.padStart(4, "*");
 
   return {
     ciphertextHex: ciphertext.toString("hex"),
     ivHex: iv.toString("hex"),
     tagHex: tag.toString("hex"),
-    last4,
+    last4: plaintext.length >= 4 ? plaintext.slice(-4) : plaintext.padStart(4, "*"),
   };
 }
 
@@ -88,23 +80,29 @@ export function decryptPmsSecret(encrypted: {
 
   const decipher = createDecipheriv("aes-256-gcm", key, iv);
   decipher.setAuthTag(tag);
-
-  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-  return decrypted.toString("utf8");
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
 }
 
 export function sanitizeCredentialsForAudit(
   data: Record<string, unknown>
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(data)) {
-    if (/password|secret|apikey|token|key/i.test(k)) {
-      result[k] = "[REDACTED]";
-    } else if (v && typeof v === "object" && !Array.isArray(v)) {
-      result[k] = sanitizeCredentialsForAudit(v as Record<string, unknown>);
+  for (const [key, value] of Object.entries(data)) {
+    if (/password|secret|apikey|token|key|ciphertext|credential/i.test(key)) {
+      result[key] = "[REDACTED]";
+    } else if (value && typeof value === "object" && !Array.isArray(value)) {
+      result[key] = sanitizeCredentialsForAudit(value as Record<string, unknown>);
     } else {
-      result[k] = v;
+      result[key] = value;
     }
   }
   return result;
+}
+
+/** Test helper only; avoids cross-test key cache leakage. */
+export function resetPmsCredentialKeyCacheForTests(): void {
+  if (process.env.NODE_ENV !== "test") {
+    throw new Error("[PMS Crypto] Key cache reset is test-only");
+  }
+  cachedKey = null;
 }
