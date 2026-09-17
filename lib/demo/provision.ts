@@ -71,6 +71,15 @@ export async function provisionDentalDemo(
 ): Promise<DemoProvisionSummary> {
   assertDemoProvisioningAllowed();
   const admin = createAdminClient();
+  const { count: activeDemoCount, error: activeCountError } = await admin
+    .from("organizations")
+    .select("id", { count: "exact", head: true })
+    .contains("settings", { demo: true })
+    .gt("settings->>demo_expires_at", new Date().toISOString());
+  if (activeCountError) throw new Error(`Demo capacity check: ${activeCountError.message}`);
+  if ((activeDemoCount || 0) >= 25) {
+    throw new Error("Demo capacity reached. Try again after an existing demo expires.");
+  }
   const token = instanceToken();
   const password = demoPassword();
   const slug = `${template.slug}-${token}`;
