@@ -20,8 +20,14 @@ import type {
 
 const disabledProviders = new Set<PmsProviderName>();
 
+function providerEnabledByEnvironment(provider: PmsProviderName): boolean {
+  if (provider !== "newsoft_ds") return false;
+  if (process.env.NODE_ENV !== "production") return true;
+  return String(process.env.PMS_NEWSOFT_ENABLED || "").toLowerCase() === "true";
+}
+
 export function isPlatformProviderEnabled(provider: PmsProviderName): boolean {
-  return !disabledProviders.has(provider);
+  return providerEnabledByEnvironment(provider) && !disabledProviders.has(provider);
 }
 
 export function setPlatformProviderEnabled(provider: PmsProviderName, enabled: boolean): void {
