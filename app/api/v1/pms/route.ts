@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+const PROVIDER = "newsoft_ds" as const;
 const SAFE_COLUMNS =
   "id,organization_id,provider,status,health,sync_enabled,appointment_write_enabled,endpoint_url,last4,capabilities,last_sync_at,last_success_at,last_error_code,created_at,updated_at";
 
@@ -22,7 +23,7 @@ function toConnection(row: Record<string, unknown>): PmsConnection {
     syncEnabled: Boolean(row.sync_enabled),
     appointmentWriteEnabled: Boolean(row.appointment_write_enabled),
     endpointUrl: String(row.endpoint_url),
-    encryptedSecretRef: `db:pms_connections:${String(row.id)}`,
+    encryptedSecretRef: `db:pms_connection_secrets:${String(row.id)}`,
     last4: String(row.last4 || "0000"),
     capabilities: row.capabilities as PmsConnection["capabilities"],
     lastSyncAt: row.last_sync_at ? String(row.last_sync_at) : undefined,
@@ -42,6 +43,7 @@ export async function GET(): Promise<Response> {
     .from("pms_connections")
     .select(SAFE_COLUMNS)
     .eq("organization_id", authz.org.orgId)
+    .eq("provider", PROVIDER)
     .maybeSingle();
   if (error) return fail("pms_read_failed", error.message, 500, { requestId });
   return ok(data ? toConnection(data) : null, { requestId });
@@ -62,7 +64,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   try {
     const connection = await pmsConnectionRepository.upsert({
       organizationId: authz.org.orgId,
-      provider: "newsoft_ds",
+      provider: PROVIDER,
       endpointUrl,
       clinicApiKey,
       capabilities: NEWSOFT_CAPABILITIES,
@@ -95,6 +97,7 @@ export async function PATCH(req: NextRequest): Promise<Response> {
     .from("pms_connections")
     .update({ sync_enabled: body.syncEnabled, health })
     .eq("organization_id", authz.org.orgId)
+    .eq("provider", PROVIDER)
     .select(SAFE_COLUMNS)
     .single();
   if (error) return fail("pms_update_failed", error.message, 500, { requestId });
