@@ -3,6 +3,8 @@
  * The configured endpoint is the clinic/partner bridge root; no synthetic records exist in runtime.
  */
 
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import {
   sanitizeAdministrativeAppointment,
   sanitizeAdministrativeContact,
@@ -23,6 +25,65 @@ export interface NewSoftConnectorConfig {
 }
 
 type FetchLike = typeof fetch;
+type ResolvedAddress = { address: string; family: number };
+type ResolveHost = (hostname: string) => Promise<ResolvedAddress[]>;
+
+async function defaultResolveHost(hostname: string): Promise<ResolvedAddress[]> {
+  if (isIP(hostname)) {
+    return [{ address: hostname, family: isIP(hostname) }];
+  }
+  return lookup(hostname, { all: true, verbatim: true });
+}
+
+function isPrivateOrReservedIp(raw: string): boolean {
+  const address = raw.split("%")[0]!.toLowerCase();
+  const family = isIP(address);
+
+  if (family === 4) {
+    const octets = address.split(".").map(Number);
+    if (octets.length !== 4 || octets.some((part) => !Number.isInteger(part))) return true;
+    const [a, b, c] = octets as [number, number, number, number];
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 0 && c === 0) ||
+      (a === 192 && b === 0 && c === 2) ||
+      (a === 192 && b === 168) ||
+      (a === 198 && (b === 18 || b === 19)) ||
+      (a === 198 && b === 51 && c === 100) ||
+      (a === 203 && b === 0 && c === 113) ||
+      a >= 224
+    );
+  }
+
+  if (family === 6) {
+    if (address === "::" || address === "::1") return true;
+    if (address.startsWith("fc") || address.startsWith("fd")) return true;
+    if (/^fe[89ab]/.test(address)) return true;
+    if (address.startsWith("ff")) return true;
+    if (address.startsWith("2001:db8")) return true;
+    if (address.startsWith("::ffff:")) {
+      const mapped = address.slice("::ffff:".length);
+      return isPrivateOrReservedIp(mapped);
+    }
+    return false;
+  }
+
+  return true;
+}
+
+function productionAllowedHosts(): Set<string> {
+  return new Set(
+    String(process.env.PMS_BRIDGE_ALLOWED_HOSTS || "")
+      .split(",")
+      .map((host) => host.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
 
 function bridgeUrl(base: string, path: string, query?: Record<string, string | undefined>): string {
   const root = base.endsWith("/") ? base : `${base}/`;
@@ -46,18 +107,73 @@ function asItems(payload: unknown): Record<string, unknown>[] {
 export class NewSoftProductionConnector {
   public readonly providerName: PmsProviderName = "newsoft_ds";
 
-  constructor(private readonly fetchImpl: FetchLike = fetch) {}
+  constructor(
+    private readonly fetchImpl: FetchLike = fetch,
+    private readonly resolveHost: ResolveHost = defaultResolveHost,
+  ) {}
 
   public getCapabilities(): PmsCapabilityModel {
     return { ...NEWSOFT_CAPABILITIES };
   }
 
-  private assertConfig(config: NewSoftConnectorConfig): void {
+  private parseAndValidateEndpoint(config: NewSoftConnectorConfig): URL {
     if (!config.clinicApiKey || !config.endpointUrl) {
       throw new Error("[NewSoft Auth] Missing required clinic API key or endpoint URL.");
     }
-    if (!config.endpointUrl.startsWith("https://")) {
+
+    let endpoint: URL;
+    try {
+      endpoint = new URL(config.endpointUrl);
+    } catch {
+      throw new Error("[NewSoft Security] Invalid PMS endpoint URL.");
+    }
+
+    if (endpoint.protocol !== "https:") {
       throw new Error("[NewSoft Security] Insecure HTTP endpoint rejected. HTTPS required.");
+    }
+    if (endpoint.username || endpoint.password) {
+      throw new Error("[NewSoft Security] Endpoint userinfo is forbidden.");
+    }
+
+    const hostname = endpoint.hostname.toLowerCase();
+    if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost")) {
+      throw new Error("[NewSoft Security] Local PMS endpoint rejected.");
+    }
+    if (isIP(hostname) && isPrivateOrReservedIp(hostname)) {
+      throw new Error("[NewSoft Security] Private/reserved PMS endpoint rejected.");
+    }
+
+    if (process.env.NODE_ENV === "production") {
+      const allowed = productionAllowedHosts();
+      if (allowed.size === 0) {
+        throw new Error(
+          "[NewSoft Security] PMS_BRIDGE_ALLOWED_HOSTS is required in production.",
+        );
+      }
+      if (!allowed.has(hostname)) {
+        throw new Error(
+          `[NewSoft Security] PMS endpoint host "${hostname}" is not platform-approved.`,
+        );
+      }
+    }
+
+    return endpoint;
+  }
+
+  private async assertEndpointNetworkSafe(endpoint: URL): Promise<void> {
+    let addresses: ResolvedAddress[];
+    try {
+      addresses = await this.resolveHost(endpoint.hostname);
+    } catch {
+      throw new Error("[NewSoft Security] PMS endpoint DNS resolution failed.");
+    }
+    if (addresses.length === 0) {
+      throw new Error("[NewSoft Security] PMS endpoint resolved to no addresses.");
+    }
+    if (addresses.some(({ address }) => isPrivateOrReservedIp(address))) {
+      throw new Error(
+        "[NewSoft Security] PMS endpoint resolves to a private/reserved network.",
+      );
     }
   }
 
@@ -65,23 +181,28 @@ export class NewSoftProductionConnector {
     config: NewSoftConnectorConfig,
     path: string,
     init?: RequestInit,
-    query?: Record<string, string | undefined>
+    query?: Record<string, string | undefined>,
   ): Promise<unknown> {
-    this.assertConfig(config);
+    const endpoint = this.parseAndValidateEndpoint(config);
+    await this.assertEndpointNetworkSafe(endpoint);
+
     const headers = new Headers(init?.headers);
     headers.set("Accept", "application/json");
     headers.set("Authorization", `Bearer ${config.clinicApiKey}`);
     headers.set("X-Deskcomm-Tenant", config.tenantId);
     if (init?.body) headers.set("Content-Type", "application/json");
 
-    const response = await this.fetchImpl(bridgeUrl(config.endpointUrl, path, query), {
+    const response = await this.fetchImpl(bridgeUrl(endpoint.toString(), path, query), {
       ...init,
       headers,
+      redirect: "error",
       signal: init?.signal ?? AbortSignal.timeout(15_000),
     });
 
     if (!response.ok) {
-      throw new Error(`[NewSoft HTTP] ${init?.method || "GET"} ${path} failed with ${response.status}`);
+      throw new Error(
+        `[NewSoft HTTP] ${init?.method || "GET"} ${path} failed with ${response.status}`,
+      );
     }
     if (response.status === 204) return null;
     return response.json();
@@ -94,7 +215,7 @@ export class NewSoftProductionConnector {
 
   public async fetchContacts(
     config: NewSoftConnectorConfig,
-    options?: { limit?: number; cursor?: string }
+    options?: { limit?: number; cursor?: string },
   ): Promise<AdministrativeContact[]> {
     const limit = Math.min(options?.limit ?? 100, 250);
     const payload = await this.request(config, "contacts", undefined, {
@@ -106,7 +227,7 @@ export class NewSoftProductionConnector {
 
   public async fetchAppointments(
     config: NewSoftConnectorConfig,
-    options: { startDate: string; endDate: string }
+    options: { startDate: string; endDate: string },
   ): Promise<AdministrativeAppointment[]> {
     const payload = await this.request(config, "appointments", undefined, {
       start: options.startDate,
@@ -117,12 +238,11 @@ export class NewSoftProductionConnector {
 
   public async createAppointment(
     config: NewSoftConnectorConfig,
-    appointment: Omit<AdministrativeAppointment, "externalId">
+    appointment: Omit<AdministrativeAppointment, "externalId">,
   ): Promise<AdministrativeAppointment> {
-    this.assertConfig(config);
     if (!config.appointmentWriteEnabled) {
       throw new Error(
-        `[PMS Safety Policy] Appointment write operations are disabled for tenant "${config.tenantId}". Deskcomm operates in Read-Only coexistence mode.`
+        `[PMS Safety Policy] Appointment write operations are disabled for tenant "${config.tenantId}". Deskcomm operates in Read-Only coexistence mode.`,
       );
     }
 
@@ -139,15 +259,16 @@ export class NewSoftProductionConnector {
 
   public async cancelAppointment(
     config: NewSoftConnectorConfig,
-    externalId: string
+    externalId: string,
   ): Promise<boolean> {
-    this.assertConfig(config);
     if (!config.appointmentWriteEnabled) {
       throw new Error(
-        `[PMS Safety Policy] Appointment cancellation is disabled for tenant "${config.tenantId}".`
+        `[PMS Safety Policy] Appointment cancellation is disabled for tenant "${config.tenantId}".`,
       );
     }
-    await this.request(config, `appointments/${encodeURIComponent(externalId)}`, { method: "DELETE" });
+    await this.request(config, `appointments/${encodeURIComponent(externalId)}`, {
+      method: "DELETE",
+    });
     return true;
   }
 }
