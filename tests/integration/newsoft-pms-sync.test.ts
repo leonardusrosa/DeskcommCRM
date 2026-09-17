@@ -21,7 +21,6 @@ function makeBridgeFetch() {
   return vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input : input.url);
     const method = init?.method || "GET";
-
     if (url.pathname.endsWith("/health")) return json({ ok: true });
     if (url.pathname.endsWith("/contacts") && method === "GET") {
       const limit = Number(url.searchParams.get("limit") || "100");
@@ -74,7 +73,7 @@ const mockConnection: PmsConnection = {
   syncEnabled: true,
   appointmentWriteEnabled: false,
   endpointUrl: validConfig.endpointUrl,
-  encryptedSecretRef: "db:pms_connections:conn-lisboa-ns",
+  encryptedSecretRef: "db:pms_connection_secrets:conn-lisboa-ns",
   last4: "9988",
   capabilities: { ...NEWSOFT_CAPABILITIES },
   createdAt: "2026-09-17T00:00:00Z",
@@ -87,9 +86,9 @@ describe("NewSoft DS HTTP bridge", () => {
     const connector = new NewSoftProductionConnector(bridgeFetch as unknown as typeof fetch);
     await expect(connector.testConnection(validConfig)).resolves.toBe(true);
     expect(String(bridgeFetch.mock.calls[0]?.[0])).toContain("/health");
-    expect((bridgeFetch.mock.calls[0]?.[1]?.headers as Record<string, string>).Authorization).toBe(
-      "Bearer ns-prod-key-9988"
-    );
+    const headers = new Headers(bridgeFetch.mock.calls[0]?.[1]?.headers);
+    expect(headers.get("Authorization")).toBe("Bearer ns-prod-key-9988");
+    expect(headers.get("X-Deskcomm-Tenant")).toBe("tenant-lisboa-1");
 
     const insecure = { ...validConfig, endpointUrl: "http://insecure.local" };
     await expect(connector.testConnection(insecure)).rejects.toThrow(/HTTPS required/);
@@ -99,7 +98,6 @@ describe("NewSoft DS HTTP bridge", () => {
     const connector = new NewSoftProductionConnector(makeBridgeFetch() as unknown as typeof fetch);
     const contacts = await connector.fetchContacts(validConfig, { limit: 10 });
     expect(contacts).toHaveLength(10);
-
     const appointments = await connector.fetchAppointments(validConfig, {
       startDate: "2026-09-17T00:00:00Z",
       endDate: "2026-10-01T00:00:00Z",
@@ -118,7 +116,6 @@ describe("NewSoft DS HTTP bridge", () => {
       appointmentLabel: "Consulta de Rotina",
     };
     await expect(connector.createAppointment(validConfig, appointment)).rejects.toThrow(/disabled/);
-
     const enabled = { ...validConfig, appointmentWriteEnabled: true };
     await expect(connector.createAppointment(enabled, appointment)).resolves.toMatchObject({
       externalId: "ns-apt-tenant-lisboa-1-new-1",
@@ -135,26 +132,16 @@ describe("NewSoft DS HTTP bridge", () => {
 
 describe("PMS sync engine", () => {
   let engine: PmsSyncEngine;
-
   beforeEach(() => {
     const connector = new NewSoftProductionConnector(makeBridgeFetch() as unknown as typeof fetch);
     engine = new PmsSyncEngine(new PmsMappingRepository(), connector);
   });
 
   it("maps bridge entities idempotently across repeated runs", async () => {
-    const first = await engine.executeSyncJob({
-      connection: mockConnection,
-      config: validConfig,
-      jobType: "initial_sync",
-    });
+    const first = await engine.executeSyncJob({ connection: mockConnection, config: validConfig, jobType: "initial_sync" });
     expect(first.contactsMapped).toBe(100);
     expect(first.appointmentsMapped).toBe(60);
-
-    const second = await engine.executeSyncJob({
-      connection: mockConnection,
-      config: validConfig,
-      jobType: "incremental_sync",
-    });
+    const second = await engine.executeSyncJob({ connection: mockConnection, config: validConfig, jobType: "incremental_sync" });
     expect(second.contactsMapped).toBe(0);
     expect(second.duplicatesDetected).toBeGreaterThan(0);
   });
@@ -163,45 +150,23 @@ describe("PMS sync engine", () => {
 describe("PMS sync worker event contract", () => {
   it("accepts only connectionId/job metadata and resolves the secret server-side", async () => {
     const executeSyncJob = vi.fn(async () => ({
-      tenantId: mockConnection.tenantId,
-      provider: "newsoft_ds" as const,
-      syncRunId: "sync-1",
-      status: "SUCCESS" as const,
-      contactsRead: 1,
-      contactsMapped: 1,
-      appointmentsRead: 1,
-      appointmentsMapped: 1,
-      duplicatesDetected: 0,
-      conflictsDetected: 0,
-      errorsCount: 0,
-      durationMs: 10,
-      syncedAt: new Date().toISOString(),
+      tenantId: mockConnection.tenantId, provider: "newsoft_ds" as const, syncRunId: "sync-1",
+      status: "SUCCESS" as const, contactsRead: 1, contactsMapped: 1, appointmentsRead: 1,
+      appointmentsMapped: 1, duplicatesDetected: 0, conflictsDetected: 0, errorsCount: 0,
+      durationMs: 10, syncedAt: new Date().toISOString(),
     }));
     const processor = createPmsSyncEventProcessor({
       connectionRepository: {
-        getRuntimeConnection: vi.fn(async () => ({
-          connection: mockConnection,
-          clinicApiKey: "server-only-secret",
-        })),
+        getRuntimeConnection: vi.fn(async () => ({ connection: mockConnection, clinicApiKey: "server-only-secret" })),
         recordSyncOutcome: vi.fn(async () => undefined),
       },
-      syncEngine: {
-        executeSyncJob,
-        deriveHealth: () => "HEALTHY",
-      },
+      syncEngine: { executeSyncJob, deriveHealth: () => "HEALTHY" },
     });
-
     const row: EventRow = {
-      id: "ev-101",
-      organization_id: mockConnection.tenantId,
-      event_type: "pms.initial_sync_requested",
-      entity_kind: "pms_connection",
-      entity_id: mockConnection.id,
-      payload: { connectionId: mockConnection.id, jobType: "initial_sync" },
-      metadata: {},
-      consumed_by: [],
-      attempts: 0,
-      created_at: new Date().toISOString(),
+      id: "ev-101", organization_id: mockConnection.tenantId,
+      event_type: "pms.initial_sync_requested", entity_kind: "pms_connection",
+      entity_id: mockConnection.id, payload: { connectionId: mockConnection.id, jobType: "initial_sync" },
+      metadata: {}, consumed_by: [], attempts: 0, created_at: new Date().toISOString(),
     };
     const result = await processor(row);
     expect(result.status).toBe("ok");
@@ -215,23 +180,16 @@ describe("PMS sync worker event contract", () => {
         getRuntimeConnection: vi.fn(async () => ({ connection: mockConnection, clinicApiKey: "x" })),
         recordSyncOutcome: vi.fn(async () => undefined),
       },
-      syncEngine: {
-        executeSyncJob: vi.fn(),
-        deriveHealth: () => "HEALTHY",
-      },
+      syncEngine: { executeSyncJob: vi.fn(), deriveHealth: () => "HEALTHY" },
     });
-
     const malformed = {
       id: "ev-1", organization_id: mockConnection.tenantId, event_type: "pms.sync",
       entity_kind: "pms_connection", entity_id: null, payload: {}, metadata: {}, consumed_by: [],
       attempts: 0, created_at: new Date().toISOString(),
     } as EventRow;
     await expect(processor(malformed)).resolves.toMatchObject({ status: "error" });
-
     const crossTenant = {
-      ...malformed,
-      id: "ev-2",
-      organization_id: "other-org",
+      ...malformed, id: "ev-2", organization_id: "other-org",
       payload: { connectionId: mockConnection.id, jobType: "initial_sync" },
     } as EventRow;
     const result = await processor(crossTenant);
