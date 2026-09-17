@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { getDentalDemoTemplate } from "@/lib/demo/templates";
 import { provisionDentalDemo } from "@/lib/demo/provision";
+import { consumeDemoProvisionAttempt } from "@/lib/demo/rate-limit";
 
 const schema = z.object({
   country: z.enum(["CO", "MX", "ES", "PT"]),
@@ -9,6 +10,16 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const clientKey = forwarded || req.headers.get("x-real-ip") || "unknown";
+  const rate = consumeDemoProvisionAttempt(clientKey);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { success: false, error: "Too many demo requests. Try again later." },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } },
+    );
+  }
+
   let payload: unknown;
   try {
     payload = await req.json();
