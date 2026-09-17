@@ -39,6 +39,12 @@ export interface PmsMappingStore {
   upsert(params: PmsMappingUpsertParams): PmsMappingUpsertResult | Promise<PmsMappingUpsertResult>;
 }
 
+function isAfter(left: string, right: string): boolean {
+  const leftMs = Date.parse(left);
+  const rightMs = Date.parse(right);
+  return Number.isFinite(leftMs) && Number.isFinite(rightMs) && leftMs > rightMs;
+}
+
 function idempotencyKey(params: PmsMappingUpsertParams): string {
   const raw = `${params.tenantId}::${params.provider}::${params.entityType}::${params.externalId}::${params.externalVersion}`;
   return crypto.createHash("sha256").update(raw).digest("hex");
@@ -96,8 +102,8 @@ export class PmsMappingRepository implements PmsMappingStore {
 
       const concurrent =
         Boolean(params.deskcommUpdatedAt) &&
-        params.deskcommUpdatedAt! > existing.lastSyncedAt &&
-        params.lastExternalUpdateAt > existing.lastSyncedAt;
+        isAfter(params.deskcommUpdatedAt!, existing.lastSyncedAt) &&
+        isAfter(params.lastExternalUpdateAt, existing.lastSyncedAt);
       const updated: PmsExternalMappingRecord = {
         ...existing,
         deskcommId: params.deskcommId,
@@ -209,8 +215,8 @@ export class SupabasePmsMappingRepository implements PmsMappingStore {
     const concurrent = Boolean(
       existingRecord &&
         params.deskcommUpdatedAt &&
-        params.deskcommUpdatedAt > existingRecord.lastSyncedAt &&
-        params.lastExternalUpdateAt > existingRecord.lastSyncedAt,
+        isAfter(params.deskcommUpdatedAt, existingRecord.lastSyncedAt) &&
+        isAfter(params.lastExternalUpdateAt, existingRecord.lastSyncedAt),
     );
 
     const row = {
