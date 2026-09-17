@@ -92,14 +92,19 @@ export async function PATCH(req: NextRequest): Promise<Response> {
     return fail("validation_failed", "syncEnabled boolean is required.", 422, { requestId });
   }
 
-  const health = body.syncEnabled ? "HEALTHY" : "DISABLED";
-  const { data, error } = await (await createClient())
-    .from("pms_connections")
-    .update({ sync_enabled: body.syncEnabled, health })
-    .eq("organization_id", authz.org.orgId)
-    .eq("provider", PROVIDER)
-    .select(SAFE_COLUMNS)
-    .single();
-  if (error) return fail("pms_update_failed", error.message, 500, { requestId });
-  return ok(toConnection(data), { requestId });
+  try {
+    const connection = await pmsConnectionRepository.setSyncEnabled({
+      organizationId: authz.org.orgId,
+      provider: PROVIDER,
+      syncEnabled: body.syncEnabled,
+    });
+    return ok(connection, { requestId });
+  } catch (error: unknown) {
+    return fail(
+      "pms_update_failed",
+      error instanceof Error ? error.message : "Unable to update PMS connection.",
+      500,
+      { requestId },
+    );
+  }
 }
