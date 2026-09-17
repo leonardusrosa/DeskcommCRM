@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS public.pms_appointment_mirrors (
   provider TEXT NOT NULL CHECK (provider IN ('newsoft_ds', 'gesden', 'infomed_dentool')),
   external_id TEXT NOT NULL,
   patient_external_id TEXT,
-  contact_id UUID,
+  contact_id UUID REFERENCES public.contacts(id) ON DELETE SET NULL,
   starts_at TIMESTAMPTZ NOT NULL,
   ends_at TIMESTAMPTZ,
   provider_label TEXT,
@@ -87,6 +87,16 @@ CREATE TABLE IF NOT EXISTS public.pms_audit_events (
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_contacts_pms_external_identity
+  ON public.contacts (
+    organization_id,
+    ((source_metadata #>> '{pms,provider}')),
+    ((source_metadata #>> '{pms,external_id}'))
+  )
+  WHERE source = 'pms'
+    AND (source_metadata #>> '{pms,provider}') IS NOT NULL
+    AND (source_metadata #>> '{pms,external_id}') IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_pms_connections_org
   ON public.pms_connections (organization_id);
