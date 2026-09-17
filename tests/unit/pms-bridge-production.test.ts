@@ -1,6 +1,6 @@
 /** Unit tests for the production PMS interoperability layer (pms_bridge_v1). */
 
-import { describe, expect, it, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ClinicalBoundaryViolationError,
   assertAdministrativePayloadSafe,
@@ -162,6 +162,11 @@ describe("PMS In-memory Mapping Test Store", () => {
 });
 
 describe("PMS Sync Engine Kill Switches & Health", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    setPlatformProviderEnabled("newsoft_ds", true);
+  });
+
   const mockConn: PmsConnection = {
     id: "conn-1",
     tenantId: "t-1",
@@ -181,6 +186,16 @@ describe("PMS Sync Engine Kill Switches & Health", () => {
   function isolatedEngine(): PmsSyncEngine {
     return new PmsSyncEngine(new PmsMappingRepository());
   }
+
+  it("fails closed in production until the NewSoft rollout flag is explicitly enabled", () => {
+    setPlatformProviderEnabled("newsoft_ds", true);
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("PMS_NEWSOFT_ENABLED", "");
+    expect(isPlatformProviderEnabled("newsoft_ds")).toBe(false);
+
+    vi.stubEnv("PMS_NEWSOFT_ENABLED", "true");
+    expect(isPlatformProviderEnabled("newsoft_ds")).toBe(true);
+  });
 
   it("honors platform-level provider kill switches", async () => {
     const engine = isolatedEngine();
