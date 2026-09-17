@@ -45,11 +45,15 @@ function normalizePhone(raw: string): string | null {
   const value = raw.trim();
   if (!value) return null;
   if (!value.startsWith("+")) {
-    throw new PmsProjectionConflictError("Administrative phone is not E.164 and cannot be stored safely.");
+    throw new PmsProjectionConflictError(
+      "Administrative phone is not E.164 and cannot be stored safely.",
+    );
   }
   const normalized = `+${value.replace(/\D/g, "")}`;
   if (!/^\+\d{8,15}$/.test(normalized)) {
-    throw new PmsProjectionConflictError("Administrative phone is not a valid E.164 number.");
+    throw new PmsProjectionConflictError(
+      "Administrative phone is not a valid E.164 number.",
+    );
   }
   return normalized;
 }
@@ -58,7 +62,9 @@ function normalizeEmail(raw: string): string | null {
   const value = raw.trim().toLowerCase();
   if (!value) return null;
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) {
-    throw new PmsProjectionConflictError("Administrative email is invalid and cannot be stored safely.");
+    throw new PmsProjectionConflictError(
+      "Administrative email is invalid and cannot be stored safely.",
+    );
   }
   return value;
 }
@@ -74,6 +80,13 @@ function pmsMarker(provider: PmsProviderName, externalId: string): Record<string
   };
 }
 
+function pmsIdentityMarker(
+  provider: PmsProviderName,
+  externalId: string,
+): Record<string, unknown> {
+  return { pms: { provider, external_id: externalId } };
+}
+
 function markerMatches(
   metadata: unknown,
   provider: PmsProviderName,
@@ -86,11 +99,35 @@ function markerMatches(
   return record.provider === provider && record.external_id === externalId;
 }
 
+function isAfter(left: string, right: string): boolean {
+  const leftMs = Date.parse(left);
+  const rightMs = Date.parse(right);
+  return Number.isFinite(leftMs) && Number.isFinite(rightMs) && leftMs > rightMs;
+}
+
 interface ContactRow {
   id: string;
   updated_at: string;
   is_anonymized: boolean;
   source_metadata: Record<string, unknown> | null;
+}
+
+async function findManagedContact(
+  tenantId: string,
+  provider: PmsProviderName,
+  externalId: string,
+): Promise<ContactRow | null> {
+  const { data, error } = await createAdminClient()
+    .from("contacts")
+    .select("id,updated_at,is_anonymized,source_metadata")
+    .eq("organization_id", tenantId)
+    .eq("source", "pms")
+    .contains("source_metadata", pmsIdentityMarker(provider, externalId))
+    .maybeSingle();
+  if (error) {
+    throw new Error(`[PMS Projection] Managed contact lookup failed: ${error.message}`);
+  }
+  return data ? (data as ContactRow) : null;
 }
 
 export class SupabasePmsEntityProjector implements PmsEntityProjector {
@@ -121,7 +158,7 @@ export class SupabasePmsEntityProjector implements PmsEntityProjector {
 
       const row = existing as ContactRow;
       const locallyChanged =
-        row.is_anonymized || row.updated_at > params.existingMapping.lastSyncedAt;
+        row.is_anonymized || isAfter(row.updated_at, params.existingMapping.lastSyncedAt);
       if (locallyChanged) {
         return {
           deskcommId: row.id,
@@ -154,8 +191,42 @@ export class SupabasePmsEntityProjector implements PmsEntityProjector {
       return { deskcommId: row.id, deskcommUpdatedAt: row.updated_at, applied: true };
     }
 
+    // Recovery path if the mapping row was lost but the PMS-managed contact survived.
+    const managed = await findManagedContact(
+      params.tenantId,
+      params.provider,
+      params.contact.externalId,
+    );
+    if (managed) {
+      if (managed.is_anonymized) {
+        throw new PmsProjectionConflictError(
+          "An anonymized Deskcomm contact cannot be rehydrated from PMS.",
+        );
+      }
+      const { error } = await client
+        .from("contacts")
+        .update({
+          name: params.contact.name,
+          display_name: params.contact.name,
+          phone_number: phone,
+          email,
+          source: "pms",
+          source_metadata: { ...(managed.source_metadata || {}), ...marker },
+          updated_at: new Date().toISOString(),
+        })
+        .eq("organization_id", params.tenantId)
+        .eq("id", managed.id);
+      if (error) {
+        throw new Error(`[PMS Projection] Contact recovery update failed: ${error.message}`);
+      }
+      return { deskcommId: managed.id, applied: true };
+    }
+
     const collisions = new Map<string, ContactRow>();
-    const collect = async (column: "phone_number" | "email_normalized", value: string | null) => {
+    const collect = async (
+      column: "phone_number" | "email_normalized",
+      value: string | null,
+    ) => {
       if (!value) return;
       const { data, error } = await client
         .from("contacts")
@@ -163,7 +234,9 @@ export class SupabasePmsEntityProjector implements PmsEntityProjector {
         .eq("organization_id", params.tenantId)
         .eq(column, value)
         .maybeSingle();
-      if (error) throw new Error(`[PMS Projection] Identity lookup failed: ${error.message}`);
+      if (error) {
+        throw new Error(`[PMS Projection] Identity lookup failed: ${error.message}`);
+      }
       if (data) collisions.set(String(data.id), data as ContactRow);
     };
     await collect("phone_number", phone);
@@ -180,7 +253,9 @@ export class SupabasePmsEntityProjector implements PmsEntityProjector {
       ) {
         const row = Array.from(collisions.values())[0]!;
         if (row.is_anonymized) {
-          throw new PmsProjectionConflictError("An anonymized Deskcomm contact cannot be rehydrated from PMS.");
+          throw new PmsProjectionConflictError(
+            "An anonymized Deskcomm contact cannot be rehydrated from PMS.",
+          );
         }
         const { error: recoveryError } = await client
           .from("contacts")
@@ -196,7 +271,9 @@ export class SupabasePmsEntityProjector implements PmsEntityProjector {
           .eq("organization_id", params.tenantId)
           .eq("id", row.id);
         if (recoveryError) {
-          throw new Error(`[PMS Projection] Contact recovery update failed: ${recoveryError.message}`);
+          throw new Error(
+            `[PMS Projection] Contact recovery update failed: ${recoveryError.message}`,
+          );
         }
         return { deskcommId: row.id, applied: true };
       }
@@ -221,11 +298,22 @@ export class SupabasePmsEntityProjector implements PmsEntityProjector {
       .single();
     if (createError || !created) {
       if (createError?.code === "23505") {
+        // Concurrent sync may have created the same external identity first.
+        const raced = await findManagedContact(
+          params.tenantId,
+          params.provider,
+          params.contact.externalId,
+        );
+        if (raced && !raced.is_anonymized) {
+          return { deskcommId: raced.id, applied: true };
+        }
         throw new PmsProjectionConflictError(
-          "PMS identity raced with an existing Deskcomm contact; automatic merge is forbidden.",
+          "PMS identity collides with another Deskcomm contact; automatic merge is forbidden.",
         );
       }
-      throw new Error(`[PMS Projection] Contact create failed: ${createError?.message || "unknown error"}`);
+      throw new Error(
+        `[PMS Projection] Contact create failed: ${createError?.message || "unknown error"}`,
+      );
     }
     return { deskcommId: String(created.id), applied: true };
   }
@@ -238,36 +326,10 @@ export class SupabasePmsEntityProjector implements PmsEntityProjector {
     externalVersion: string;
     existingMapping: PmsExternalMappingRecord | null;
   }): Promise<PmsProjectionResult> {
-    const client = createAdminClient();
     const startsAt = new Date(params.appointment.start);
     const endsAt = params.appointment.end ? new Date(params.appointment.end) : null;
     if (Number.isNaN(startsAt.getTime()) || (endsAt && Number.isNaN(endsAt.getTime()))) {
       throw new PmsProjectionConflictError("Appointment timestamps are invalid.");
-    }
-
-    let mirrorId = params.existingMapping?.deskcommId;
-    if (mirrorId) {
-      const { data, error } = await client
-        .from("pms_appointment_mirrors")
-        .select("id")
-        .eq("organization_id", params.tenantId)
-        .eq("provider", params.provider)
-        .eq("id", mirrorId)
-        .maybeSingle();
-      if (error) throw new Error(`[PMS Projection] Appointment mirror read failed: ${error.message}`);
-      if (!data) mirrorId = undefined;
-    }
-
-    if (!mirrorId) {
-      const { data, error } = await client
-        .from("pms_appointment_mirrors")
-        .select("id")
-        .eq("organization_id", params.tenantId)
-        .eq("provider", params.provider)
-        .eq("external_id", params.appointment.externalId)
-        .maybeSingle();
-      if (error) throw new Error(`[PMS Projection] Appointment mirror lookup failed: ${error.message}`);
-      if (data) mirrorId = String(data.id);
     }
 
     const row = {
@@ -285,26 +347,17 @@ export class SupabasePmsEntityProjector implements PmsEntityProjector {
       updated_at: new Date().toISOString(),
     };
 
-    if (mirrorId) {
-      const { error } = await client
-        .from("pms_appointment_mirrors")
-        .update(row)
-        .eq("organization_id", params.tenantId)
-        .eq("provider", params.provider)
-        .eq("id", mirrorId);
-      if (error) throw new Error(`[PMS Projection] Appointment mirror update failed: ${error.message}`);
-      return { deskcommId: mirrorId, applied: true };
-    }
-
-    const { data: created, error } = await client
+    const { data, error } = await createAdminClient()
       .from("pms_appointment_mirrors")
-      .insert(row)
+      .upsert(row, { onConflict: "organization_id,provider,external_id" })
       .select("id")
       .single();
-    if (error || !created) {
-      throw new Error(`[PMS Projection] Appointment mirror create failed: ${error?.message || "unknown error"}`);
+    if (error || !data) {
+      throw new Error(
+        `[PMS Projection] Appointment mirror upsert failed: ${error?.message || "unknown error"}`,
+      );
     }
-    return { deskcommId: String(created.id), applied: true };
+    return { deskcommId: String(data.id), applied: true };
   }
 }
 
