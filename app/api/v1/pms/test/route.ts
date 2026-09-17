@@ -14,9 +14,10 @@ export async function POST(): Promise<Response> {
     .from("pms_connections")
     .select("id")
     .eq("organization_id", authz.org.orgId)
+    .eq("provider", "newsoft_ds")
     .maybeSingle();
   if (error) return fail("pms_read_failed", error.message, 500, { requestId });
-  if (!data) return fail("pms_not_configured", "No PMS connection configured.", 404, { requestId });
+  if (!data) return fail("pms_not_configured", "No NewSoft PMS connection configured.", 404, { requestId });
 
   try {
     const runtime = await pmsConnectionRepository.getRuntimeConnection(String(data.id));
