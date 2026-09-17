@@ -3,12 +3,24 @@ import { fail, ok } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
 import { pmsConnectionRepository } from "@/lib/integrations/pms/connection-repository";
 import { newSoftProductionConnector } from "@/lib/integrations/pms/newsoft-connector";
+import { isPlatformProviderEnabled } from "@/lib/integrations/pms/sync-engine";
+import { isPlatformProviderEnabled } from "@/lib/integrations/pms/sync-engine";
 import { createClient } from "@/lib/supabase/server";
 
 export async function POST(): Promise<Response> {
   const requestId = randomUUID();
   const authz = await requireRole("admin", { requestId, resource: "pms" });
   if (!authz.ok) return authz.response;
+
+  if (!isPlatformProviderEnabled("newsoft_ds")) {
+    return fail(
+      "pms_provider_disabled",
+      "NewSoft PMS runtime is disabled by the platform.",
+      503,
+      { requestId },
+    );
+  }
+
 
   const { data, error } = await (await createClient())
     .from("pms_connections")
