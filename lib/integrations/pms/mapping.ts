@@ -1,12 +1,10 @@
 /**
- * lib/integrations/pms/mapping.ts
- *
- * Production durable mapping layer for external PMS records.
- * Enforces strict logical uniqueness: tenant_id + provider + entity_type + external_id.
- * Generates deterministic idempotency keys and provides non-destructive conflict handling.
+ * PMS external mapping stores.
+ * Runtime defaults to Supabase durability; the in-memory repository remains test-only friendly.
  */
 
 import crypto from "node:crypto";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type {
   PmsExternalMappingRecord,
   PmsProviderName,
@@ -14,7 +12,51 @@ import type {
   SyncLifecycleState,
 } from "./types";
 
-export class PmsMappingRepository {
+export interface PmsMappingUpsertParams {
+  tenantId: string;
+  provider: PmsProviderName;
+  entityType: "contact" | "appointment";
+  externalId: string;
+  deskcommId: string;
+  externalVersion: string;
+  lastExternalUpdateAt: string;
+  deskcommUpdatedAt?: string;
+}
+
+export interface PmsMappingUpsertResult {
+  record: PmsExternalMappingRecord;
+  isDuplicate: boolean;
+  conflictDetected: boolean;
+}
+
+export interface PmsMappingStore {
+  upsert(params: PmsMappingUpsertParams): PmsMappingUpsertResult | Promise<PmsMappingUpsertResult>;
+}
+
+function idempotencyKey(params: PmsMappingUpsertParams): string {
+  const raw = `${params.tenantId}::${params.provider}::${params.entityType}::${params.externalId}::${params.externalVersion}`;
+  return crypto.createHash("sha256").update(raw).digest("hex");
+}
+
+function toRecord(row: Record<string, unknown>): PmsExternalMappingRecord {
+  return {
+    id: String(row.id),
+    tenantId: String(row.organization_id),
+    provider: row.provider as PmsProviderName,
+    entityType: row.entity_type as "contact" | "appointment",
+    externalId: String(row.external_id),
+    deskcommId: String(row.deskcomm_id),
+    externalVersion: String(row.external_version),
+    checksum: String(row.checksum),
+    lastExternalUpdateAt: String(row.last_external_update_at),
+    lastSyncedAt: String(row.last_synced_at),
+    syncStatus: row.sync_status as SyncLifecycleState,
+    conflictType: (row.conflict_type || undefined) as SyncConflictType | undefined,
+  };
+}
+
+/** In-memory store for deterministic unit/integration tests only. */
+export class PmsMappingRepository implements PmsMappingStore {
   private localStore = new Map<string, PmsExternalMappingRecord>();
 
   public static generateIdempotencyKey(
@@ -24,72 +66,46 @@ export class PmsMappingRepository {
     externalId: string,
     externalVersion: string
   ): string {
-    const raw = `${tenantId}::${provider}::${entityType}::${externalId}::${externalVersion}`;
-    return crypto.createHash("sha256").update(raw).digest("hex");
+    return idempotencyKey({
+      tenantId,
+      provider,
+      entityType,
+      externalId,
+      externalVersion,
+      deskcommId: "",
+      lastExternalUpdateAt: "",
+    });
   }
 
-  public upsert(params: {
-    tenantId: string;
-    provider: PmsProviderName;
-    entityType: "contact" | "appointment";
-    externalId: string;
-    deskcommId: string;
-    externalVersion: string;
-    lastExternalUpdateAt: string;
-    deskcommUpdatedAt?: string;
-  }): { record: PmsExternalMappingRecord; isDuplicate: boolean; conflictDetected: boolean } {
+  public upsert(params: PmsMappingUpsertParams): PmsMappingUpsertResult {
     const naturalKey = `${params.tenantId}::${params.provider}::${params.entityType}::${params.externalId}`;
-    const checksum = PmsMappingRepository.generateIdempotencyKey(
-      params.tenantId,
-      params.provider,
-      params.entityType,
-      params.externalId,
-      params.externalVersion
-    );
-
+    const checksum = idempotencyKey(params);
     const existing = this.localStore.get(naturalKey);
     const now = new Date().toISOString();
 
     if (existing) {
-      // Idempotency check: identical version and synced state -> no-op
       if (existing.externalVersion === params.externalVersion && existing.syncStatus === "synced") {
         return { record: existing, isDuplicate: true, conflictDetected: false };
       }
 
-      // Conflict detection: both local Deskcomm and external PMS modified since last sync
-      if (params.deskcommUpdatedAt && params.deskcommUpdatedAt > existing.lastSyncedAt) {
-        if (params.lastExternalUpdateAt > existing.lastSyncedAt) {
-          const conflictType: SyncConflictType = "ambiguous";
-          const updated: PmsExternalMappingRecord = {
-            ...existing,
-            externalVersion: params.externalVersion,
-            checksum,
-            lastExternalUpdateAt: params.lastExternalUpdateAt,
-            lastSyncedAt: now,
-            syncStatus: "conflict",
-            conflictType,
-          };
-          this.localStore.set(naturalKey, updated);
-          return { record: updated, isDuplicate: false, conflictDetected: true };
-        }
-      }
-
-      // Clean update
+      const concurrent =
+        Boolean(params.deskcommUpdatedAt) &&
+        params.deskcommUpdatedAt! > existing.lastSyncedAt &&
+        params.lastExternalUpdateAt > existing.lastSyncedAt;
       const updated: PmsExternalMappingRecord = {
         ...existing,
         externalVersion: params.externalVersion,
         checksum,
         lastExternalUpdateAt: params.lastExternalUpdateAt,
         lastSyncedAt: now,
-        syncStatus: "synced",
-        conflictType: undefined,
+        syncStatus: concurrent ? "conflict" : "synced",
+        conflictType: concurrent ? "ambiguous" : undefined,
       };
       this.localStore.set(naturalKey, updated);
-      return { record: updated, isDuplicate: false, conflictDetected: false };
+      return { record: updated, isDuplicate: false, conflictDetected: concurrent };
     }
 
-    // New entity creation
-    const newRecord: PmsExternalMappingRecord = {
+    const record: PmsExternalMappingRecord = {
       id: `map-${crypto.randomUUID().slice(0, 8)}`,
       tenantId: params.tenantId,
       provider: params.provider,
@@ -102,9 +118,8 @@ export class PmsMappingRepository {
       lastSyncedAt: now,
       syncStatus: "synced",
     };
-
-    this.localStore.set(naturalKey, newRecord);
-    return { record: newRecord, isDuplicate: false, conflictDetected: false };
+    this.localStore.set(naturalKey, record);
+    return { record, isDuplicate: false, conflictDetected: false };
   }
 
   public getByExternalId(
@@ -113,12 +128,11 @@ export class PmsMappingRepository {
     entityType: "contact" | "appointment",
     externalId: string
   ): PmsExternalMappingRecord | null {
-    const naturalKey = `${tenantId}::${provider}::${entityType}::${externalId}`;
-    return this.localStore.get(naturalKey) || null;
+    return this.localStore.get(`${tenantId}::${provider}::${entityType}::${externalId}`) || null;
   }
 
   public listByTenant(tenantId: string): PmsExternalMappingRecord[] {
-    return Array.from(this.localStore.values()).filter((r) => r.tenantId === tenantId);
+    return Array.from(this.localStore.values()).filter((record) => record.tenantId === tenantId);
   }
 
   public resolveConflict(
@@ -131,11 +145,9 @@ export class PmsMappingRepository {
     if (existing.tenantId !== tenantId) {
       throw new Error("[Security Alert] Cross-tenant conflict resolution blocked");
     }
-
-    const state: SyncLifecycleState = "synced";
-    const updated: PmsExternalMappingRecord = {
+    const updated = {
       ...existing,
-      syncStatus: state,
+      syncStatus: "synced" as SyncLifecycleState,
       conflictType: undefined,
       lastSyncedAt: new Date().toISOString(),
     };
@@ -148,4 +160,58 @@ export class PmsMappingRepository {
   }
 }
 
-export const defaultMappingRepository = new PmsMappingRepository();
+/** Runtime store. Service-role access is always explicitly scoped by organization_id. */
+export class SupabasePmsMappingRepository implements PmsMappingStore {
+  public async upsert(params: PmsMappingUpsertParams): Promise<PmsMappingUpsertResult> {
+    const client = createAdminClient();
+    const { data: existing, error: readError } = await client
+      .from("pms_external_mappings")
+      .select("*")
+      .eq("organization_id", params.tenantId)
+      .eq("provider", params.provider)
+      .eq("entity_type", params.entityType)
+      .eq("external_id", params.externalId)
+      .maybeSingle();
+
+    if (readError) throw new Error(`[PMS Mapping] Read failed: ${readError.message}`);
+
+    const checksum = idempotencyKey(params);
+    const now = new Date().toISOString();
+    if (existing && existing.external_version === params.externalVersion && existing.sync_status === "synced") {
+      return { record: toRecord(existing), isDuplicate: true, conflictDetected: false };
+    }
+
+    const existingRecord = existing ? toRecord(existing) : null;
+    const concurrent = Boolean(
+      existingRecord &&
+        params.deskcommUpdatedAt &&
+        params.deskcommUpdatedAt > existingRecord.lastSyncedAt &&
+        params.lastExternalUpdateAt > existingRecord.lastSyncedAt
+    );
+
+    const row = {
+      organization_id: params.tenantId,
+      provider: params.provider,
+      entity_type: params.entityType,
+      external_id: params.externalId,
+      deskcomm_id: params.deskcommId,
+      external_version: params.externalVersion,
+      checksum,
+      last_external_update_at: params.lastExternalUpdateAt,
+      last_synced_at: now,
+      sync_status: concurrent ? "conflict" : "synced",
+      conflict_type: concurrent ? "ambiguous" : null,
+    };
+
+    const { data, error } = await client
+      .from("pms_external_mappings")
+      .upsert(row, { onConflict: "organization_id,provider,entity_type,external_id" })
+      .select("*")
+      .single();
+
+    if (error) throw new Error(`[PMS Mapping] Upsert failed: ${error.message}`);
+    return { record: toRecord(data), isDuplicate: false, conflictDetected: concurrent };
+  }
+}
+
+export const defaultMappingRepository: PmsMappingStore = new SupabasePmsMappingRepository();
