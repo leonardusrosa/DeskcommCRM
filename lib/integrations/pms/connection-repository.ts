@@ -115,6 +115,25 @@ export class PmsConnectionRepository {
     return toConnection(data);
   }
 
+  public async setSyncEnabled(params: {
+    organizationId: string;
+    provider: PmsProviderName;
+    syncEnabled: boolean;
+  }): Promise<PmsConnection> {
+    const health: PmsConnection["health"] = params.syncEnabled ? "HEALTHY" : "DISABLED";
+    const { data, error } = await createAdminClient()
+      .from("pms_connections")
+      .update({ sync_enabled: params.syncEnabled, health })
+      .eq("organization_id", params.organizationId)
+      .eq("provider", params.provider)
+      .select("*")
+      .single();
+    if (error || !data) {
+      throw new Error(`[PMS Connection] Toggle sync failed: ${error?.message || "unknown error"}`);
+    }
+    return toConnection(data);
+  }
+
   public async recordSyncOutcome(
     connectionId: string,
     outcome: { success: boolean; health: PmsConnection["health"]; errorCode?: string }
