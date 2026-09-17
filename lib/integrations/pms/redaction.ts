@@ -1,10 +1,11 @@
 /**
  * PMS cleanup that runs as part of contact anonymization.
- * It preserves the external contact mapping as a disabled tombstone so a later
+ * It preserves the external contact identity as a disabled tombstone so a later
  * PMS sync cannot recreate the person, and removes appointment mirrors linked
  * to that contact or to its PMS patient identity.
  */
 
+import { createHash } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { PmsProviderName } from "./types";
 
@@ -26,9 +27,35 @@ function tableUnavailable(error: { code?: string; message?: string } | null): bo
 }
 
 interface ContactMappingIdentity {
-  id: string;
+  id?: string;
   provider: PmsProviderName;
   external_id: string;
+}
+
+const PMS_PROVIDERS = new Set<PmsProviderName>(["newsoft_ds", "gesden", "infomed_dentool"]);
+
+function identityFromMetadata(
+  source: unknown,
+  metadata: unknown,
+): Omit<ContactMappingIdentity, "id"> | null {
+  if (source !== "pms" || !metadata || typeof metadata !== "object") return null;
+  const pms = (metadata as { pms?: unknown }).pms;
+  if (!pms || typeof pms !== "object") return null;
+  const record = pms as Record<string, unknown>;
+  const provider = String(record.provider || "") as PmsProviderName;
+  const externalId = String(record.external_id || "").trim();
+  if (!PMS_PROVIDERS.has(provider) || !externalId) return null;
+  return { provider, external_id: externalId };
+}
+
+function tombstoneChecksum(
+  organizationId: string,
+  provider: PmsProviderName,
+  externalId: string,
+): string {
+  return createHash("sha256")
+    .update(`${organizationId}::${provider}::contact::${externalId}::redacted`)
+    .digest("hex");
 }
 
 export async function suppressPmsDataForAnonymizedContact(
@@ -36,6 +63,16 @@ export async function suppressPmsDataForAnonymizedContact(
   contactId: string,
 ): Promise<PmsContactRedactionResult> {
   const client = createAdminClient();
+
+  const { data: contact, error: contactReadError } = await client
+    .from("contacts")
+    .select("source,source_metadata")
+    .eq("organization_id", organizationId)
+    .eq("id", contactId)
+    .maybeSingle();
+  if (contactReadError) {
+    throw new Error(`[PMS Redaction] Contact lookup failed: ${contactReadError.message}`);
+  }
 
   const { data: contactMappings, error: contactMappingReadError } = await client
     .from("pms_external_mappings")
@@ -57,7 +94,21 @@ export async function suppressPmsDataForAnonymizedContact(
     );
   }
 
-  const identities = (contactMappings ?? []) as ContactMappingIdentity[];
+  const identities = new Map<string, ContactMappingIdentity>();
+  for (const mapping of (contactMappings ?? []) as ContactMappingIdentity[]) {
+    identities.set(`${mapping.provider}::${mapping.external_id}`, mapping);
+  }
+
+  // If the mapping row was lost but the contact still has its PMS origin marker,
+  // preserve that identity as a durable disabled tombstone before source_metadata
+  // is cleared by the LGPD flow.
+  const markerIdentity = identityFromMetadata(contact?.source, contact?.source_metadata);
+  if (markerIdentity) {
+    const key = `${markerIdentity.provider}::${markerIdentity.external_id}`;
+    if (!identities.has(key)) identities.set(key, markerIdentity);
+  }
+
+  const identityList = Array.from(identities.values());
   const mirrorIds = new Set<string>();
 
   const { data: linkedMirrors, error: mirrorReadError } = await client
@@ -80,7 +131,7 @@ export async function suppressPmsDataForAnonymizedContact(
 
   // Some mirrors may have been imported before their patient contact was mapped.
   // Match those by the server-only external patient identity as well.
-  for (const identity of identities) {
+  for (const identity of identityList) {
     const { data: externalMirrors, error } = await client
       .from("pms_appointment_mirrors")
       .select("id")
@@ -130,20 +181,34 @@ export async function suppressPmsDataForAnonymizedContact(
   }
 
   let contactMappingsDisabled = 0;
-  const contactMappingIds = identities.map((mapping) => mapping.id);
-  if (contactMappingIds.length > 0) {
-    const { data: disabledMappings, error: mappingDisableError } = await client
+  const now = new Date().toISOString();
+  for (const identity of identityList) {
+    const { data: tombstone, error: tombstoneError } = await client
       .from("pms_external_mappings")
-      .update({ sync_status: "disabled", conflict_type: null })
-      .eq("organization_id", organizationId)
-      .in("id", contactMappingIds)
-      .select("id");
-    if (mappingDisableError) {
+      .upsert(
+        {
+          organization_id: organizationId,
+          provider: identity.provider,
+          entity_type: "contact",
+          external_id: identity.external_id,
+          deskcomm_id: contactId,
+          external_version: "redacted",
+          checksum: tombstoneChecksum(organizationId, identity.provider, identity.external_id),
+          last_external_update_at: now,
+          last_synced_at: now,
+          sync_status: "disabled",
+          conflict_type: null,
+        },
+        { onConflict: "organization_id,provider,entity_type,external_id" },
+      )
+      .select("id")
+      .single();
+    if (tombstoneError || !tombstone) {
       throw new Error(
-        `[PMS Redaction] Contact mapping disable failed: ${mappingDisableError.message}`,
+        `[PMS Redaction] Contact tombstone save failed: ${tombstoneError?.message || "unknown error"}`,
       );
     }
-    contactMappingsDisabled = disabledMappings?.length ?? 0;
+    contactMappingsDisabled += 1;
   }
 
   return {
