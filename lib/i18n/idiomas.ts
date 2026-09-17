@@ -45,7 +45,7 @@
  * alcançar quem entra depois e nunca abriu o próprio perfil.
  */
 
-export const IDIOMAS = ["pt-BR", "es"] as const;
+export const IDIOMAS = ["pt-BR", "pt-PT", "es"] as const;
 export type Idioma = (typeof IDIOMAS)[number];
 
 export const IDIOMA_PADRAO: Idioma = "pt-BR";
@@ -58,7 +58,9 @@ export const IDIOMA_PADRAO: Idioma = "pt-BR";
  * e um valor desconhecido chegando ao dicionário devolveria a CHAVE na tela.
  */
 export function normalizarIdioma(bruto: string | null | undefined): Idioma {
-  return (IDIOMAS as readonly string[]).includes(bruto ?? "")
-    ? (bruto as Idioma)
-    : IDIOMA_PADRAO;
+  const valor = (bruto ?? "").trim();
+  if (valor === "pt" || valor.toLowerCase() === "pt-pt") return "pt-PT";
+  if (valor.toLowerCase() === "pt-br") return "pt-BR";
+  if (valor === "es" || /^es-(CO|MX|ES)$/i.test(valor)) return "es";
+  return (IDIOMAS as readonly string[]).includes(valor) ? (valor as Idioma) : IDIOMA_PADRAO;
 }
