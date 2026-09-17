@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import type { DemoCountry } from "@/lib/demo/types";
 
 interface CreatedDemo {
@@ -18,7 +18,7 @@ export function useDemoRequest(initialCountry: DemoCountry = "CO") {
   const [created, setCreated] = useState<CreatedDemo | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const submit = async (event: React.FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     setLoading(true);
     setError(null);
