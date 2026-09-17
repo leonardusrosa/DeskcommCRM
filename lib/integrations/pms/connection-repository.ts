@@ -1,6 +1,6 @@
 /**
  * Service-role PMS connection repository for workers/server routes.
- * Never returns encrypted credential material to browser code.
+ * Encrypted credential material is isolated from tenant-visible metadata.
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -22,7 +22,7 @@ function toConnection(row: Record<string, unknown>): PmsConnection {
     syncEnabled: Boolean(row.sync_enabled),
     appointmentWriteEnabled: Boolean(row.appointment_write_enabled),
     endpointUrl: String(row.endpoint_url),
-    encryptedSecretRef: `db:pms_connections:${String(row.id)}`,
+    encryptedSecretRef: `db:pms_connection_secrets:${String(row.id)}`,
     last4: String(row.last4 || "0000"),
     capabilities: row.capabilities as PmsCapabilityModel,
     lastSyncAt: row.last_sync_at ? String(row.last_sync_at) : undefined,
@@ -36,23 +36,31 @@ function toConnection(row: Record<string, unknown>): PmsConnection {
 export class PmsConnectionRepository {
   public async getRuntimeConnection(connectionId: string): Promise<RuntimePmsConnection> {
     const client = createAdminClient();
-    const { data, error } = await client
+    const { data: connectionRow, error: connectionError } = await client
       .from("pms_connections")
       .select("*")
       .eq("id", connectionId)
       .single();
-
-    if (error || !data) {
+    if (connectionError || !connectionRow) {
       throw new Error(`[PMS Connection] Connection not found: ${connectionId}`);
     }
 
-    const clinicApiKey = decryptPmsSecret({
-      ciphertextHex: String(data.credential_ciphertext),
-      ivHex: String(data.credential_iv),
-      tagHex: String(data.credential_tag),
-    });
+    const { data: secretRow, error: secretError } = await client
+      .from("pms_connection_secrets")
+      .select("credential_ciphertext,credential_iv,credential_tag")
+      .eq("connection_id", connectionId)
+      .eq("organization_id", connectionRow.organization_id)
+      .single();
+    if (secretError || !secretRow) {
+      throw new Error(`[PMS Connection] Credential material unavailable: ${connectionId}`);
+    }
 
-    return { connection: toConnection(data), clinicApiKey };
+    const clinicApiKey = decryptPmsSecret({
+      ciphertextHex: String(secretRow.credential_ciphertext),
+      ivHex: String(secretRow.credential_iv),
+      tagHex: String(secretRow.credential_tag),
+    });
+    return { connection: toConnection(connectionRow), clinicApiKey };
   }
 
   public async upsert(params: {
@@ -69,28 +77,40 @@ export class PmsConnectionRepository {
     }
 
     const encrypted = encryptPmsSecret(params.clinicApiKey);
-    const row = {
-      organization_id: params.organizationId,
-      provider: params.provider,
-      endpoint_url: params.endpointUrl,
-      credential_ciphertext: encrypted.ciphertextHex,
-      credential_iv: encrypted.ivHex,
-      credential_tag: encrypted.tagHex,
-      last4: encrypted.last4,
-      capabilities: params.capabilities,
-      sync_enabled: params.syncEnabled ?? true,
-      appointment_write_enabled: params.appointmentWriteEnabled ?? false,
-      status: "connected",
-    };
-
-    const { data, error } = await createAdminClient()
+    const client = createAdminClient();
+    const { data, error } = await client
       .from("pms_connections")
-      .upsert(row, { onConflict: "organization_id,provider" })
+      .upsert(
+        {
+          organization_id: params.organizationId,
+          provider: params.provider,
+          endpoint_url: params.endpointUrl,
+          last4: encrypted.last4,
+          capabilities: params.capabilities,
+          sync_enabled: params.syncEnabled ?? true,
+          appointment_write_enabled: params.appointmentWriteEnabled ?? false,
+          status: "connected",
+        },
+        { onConflict: "organization_id,provider" }
+      )
       .select("*")
       .single();
-
     if (error || !data) {
       throw new Error(`[PMS Connection] Save failed: ${error?.message || "unknown error"}`);
+    }
+
+    const { error: secretError } = await client.from("pms_connection_secrets").upsert(
+      {
+        connection_id: data.id,
+        organization_id: params.organizationId,
+        credential_ciphertext: encrypted.ciphertextHex,
+        credential_iv: encrypted.ivHex,
+        credential_tag: encrypted.tagHex,
+      },
+      { onConflict: "connection_id" }
+    );
+    if (secretError) {
+      throw new Error(`[PMS Connection] Credential save failed: ${secretError.message}`);
     }
     return toConnection(data);
   }
