@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { type NextRequest } from "next/server";
 import { fail, ok } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
+import { isPlatformProviderEnabled } from "@/lib/integrations/pms/sync-engine";
 import { createClient } from "@/lib/supabase/server";
 
 const EVENT_TYPES = {
@@ -16,6 +17,16 @@ export async function POST(req: NextRequest): Promise<Response> {
   const requestId = randomUUID();
   const authz = await requireRole("admin", { requestId, resource: "pms" });
   if (!authz.ok) return authz.response;
+
+  if (!isPlatformProviderEnabled("newsoft_ds")) {
+    return fail(
+      "pms_provider_disabled",
+      "NewSoft PMS runtime is disabled by the platform.",
+      503,
+      { requestId },
+    );
+  }
+
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const jobType = String(body.jobType || "incremental_sync") as JobType;
