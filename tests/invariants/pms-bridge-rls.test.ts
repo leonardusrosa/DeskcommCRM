@@ -145,31 +145,31 @@ describe("PMS bridge — RLS and credential boundary", () => {
     expect(queryFailsAs(ADMIN_A, "select count(*) from public.pms_connection_secrets;")).toBe(true);
   });
 
-  it("tenant members can read only mappings and appointment mirrors from their organization", () => {
+  it("external identity mappings and appointment mirrors are service-role only", () => {
     expect(
-      countAs(
+      queryFailsAs(
         VIEWER_A,
         `select count(*) from public.pms_external_mappings where organization_id='${ORG_A}';`,
       ),
-    ).toBe(1);
+    ).toBe(true);
     expect(
-      countAs(
-        VIEWER_A,
-        `select count(*) from public.pms_external_mappings where organization_id='${ORG_B}';`,
+      queryFailsAs(
+        ADMIN_A,
+        `select count(*) from public.pms_external_mappings where organization_id='${ORG_A}';`,
       ),
-    ).toBe(0);
+    ).toBe(true);
     expect(
-      countAs(
+      queryFailsAs(
         VIEWER_A,
         `select count(*) from public.pms_appointment_mirrors where organization_id='${ORG_A}';`,
       ),
-    ).toBe(1);
+    ).toBe(true);
     expect(
-      countAs(
-        VIEWER_A,
-        `select count(*) from public.pms_appointment_mirrors where organization_id='${ORG_B}';`,
+      queryFailsAs(
+        ADMIN_A,
+        `select count(*) from public.pms_appointment_mirrors where organization_id='${ORG_A}';`,
       ),
-    ).toBe(0);
+    ).toBe(true);
   });
 
   it("tenant users cannot mutate service-owned PMS state directly", () => {
