@@ -4,6 +4,10 @@ import {
   type NewSoftConnectorConfig,
 } from "../../lib/integrations/pms/newsoft-connector";
 import { PmsMappingRepository } from "../../lib/integrations/pms/mapping";
+import {
+  InMemoryPmsEntityProjector,
+  PmsProjectionConflictError,
+} from "../../lib/integrations/pms/entity-projector";
 import { PmsSyncEngine } from "../../lib/integrations/pms/sync-engine";
 import { createPmsSyncEventProcessor } from "../../workers/pms-sync-worker";
 import type { EventRow } from "../../lib/event-log/dispatcher";
@@ -28,7 +32,7 @@ function makeBridgeFetch() {
         items: Array.from({ length: limit }, (_, index) => ({
           externalId: `ns-pat-tenant-lisboa-1-${index + 1}`,
           name: `Utente ${index + 1}`,
-          phone: `+351900${index + 1}`,
+          phone: `+351900${String(index + 1).padStart(4, "0")}`,
           email: `u${index + 1}@example.test`,
         })),
       });
@@ -132,41 +136,111 @@ describe("NewSoft DS HTTP bridge", () => {
 
 describe("PMS sync engine", () => {
   let engine: PmsSyncEngine;
+  let mappings: PmsMappingRepository;
+
   beforeEach(() => {
     const connector = new NewSoftProductionConnector(makeBridgeFetch() as unknown as typeof fetch);
-    engine = new PmsSyncEngine(new PmsMappingRepository(), connector);
+    mappings = new PmsMappingRepository();
+    engine = new PmsSyncEngine(mappings, connector, new InMemoryPmsEntityProjector());
   });
 
-  it("maps bridge entities idempotently across repeated runs", async () => {
-    const first = await engine.executeSyncJob({ connection: mockConnection, config: validConfig, jobType: "initial_sync" });
+  it("projects real UUID-shaped Deskcomm ids and stays idempotent across repeated runs", async () => {
+    const first = await engine.executeSyncJob({
+      connection: mockConnection,
+      config: validConfig,
+      jobType: "initial_sync",
+    });
+    expect(first.status).toBe("SUCCESS");
     expect(first.contactsMapped).toBe(100);
     expect(first.appointmentsMapped).toBe(60);
-    const second = await engine.executeSyncJob({ connection: mockConnection, config: validConfig, jobType: "incremental_sync" });
+
+    const contactMap = mappings.getByExternalId(
+      mockConnection.tenantId,
+      "newsoft_ds",
+      "contact",
+      "ns-pat-tenant-lisboa-1-1",
+    );
+    const appointmentMap = mappings.getByExternalId(
+      mockConnection.tenantId,
+      "newsoft_ds",
+      "appointment",
+      "ns-apt-tenant-lisboa-1-1",
+    );
+    expect(contactMap?.deskcommId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(appointmentMap?.deskcommId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(contactMap?.deskcommId).not.toContain("dk-");
+    expect(appointmentMap?.deskcommId).not.toContain("dk-");
+
+    const second = await engine.executeSyncJob({
+      connection: mockConnection,
+      config: validConfig,
+      jobType: "incremental_sync",
+    });
     expect(second.contactsMapped).toBe(0);
-    expect(second.duplicatesDetected).toBeGreaterThan(0);
+    expect(second.appointmentsMapped).toBe(0);
+    expect(second.duplicatesDetected).toBe(85);
+  });
+
+  it("marks projection identity collisions as partial instead of auto-merging", async () => {
+    const connector = new NewSoftProductionConnector(makeBridgeFetch() as unknown as typeof fetch);
+    const projector = new InMemoryPmsEntityProjector();
+    projector.projectContact = vi.fn(async () => {
+      throw new PmsProjectionConflictError("automatic merge forbidden");
+    });
+    const conflictEngine = new PmsSyncEngine(new PmsMappingRepository(), connector, projector);
+
+    const result = await conflictEngine.executeSyncJob({
+      connection: mockConnection,
+      config: validConfig,
+      jobType: "incremental_sync",
+    });
+
+    expect(result.status).toBe("PARTIAL");
+    expect(result.contactsMapped).toBe(0);
+    expect(result.conflictsDetected).toBe(25);
+    expect(result.errorsCount).toBe(25);
+    expect(result.appointmentsMapped).toBe(60);
   });
 });
 
 describe("PMS sync worker event contract", () => {
   it("accepts only connectionId/job metadata and resolves the secret server-side", async () => {
     const executeSyncJob = vi.fn(async () => ({
-      tenantId: mockConnection.tenantId, provider: "newsoft_ds" as const, syncRunId: "sync-1",
-      status: "SUCCESS" as const, contactsRead: 1, contactsMapped: 1, appointmentsRead: 1,
-      appointmentsMapped: 1, duplicatesDetected: 0, conflictsDetected: 0, errorsCount: 0,
-      durationMs: 10, syncedAt: new Date().toISOString(),
+      tenantId: mockConnection.tenantId,
+      provider: "newsoft_ds" as const,
+      syncRunId: "sync-1",
+      status: "SUCCESS" as const,
+      contactsRead: 1,
+      contactsMapped: 1,
+      appointmentsRead: 1,
+      appointmentsMapped: 1,
+      duplicatesDetected: 0,
+      conflictsDetected: 0,
+      errorsCount: 0,
+      durationMs: 10,
+      syncedAt: new Date().toISOString(),
     }));
     const processor = createPmsSyncEventProcessor({
       connectionRepository: {
-        getRuntimeConnection: vi.fn(async () => ({ connection: mockConnection, clinicApiKey: "server-only-secret" })),
+        getRuntimeConnection: vi.fn(async () => ({
+          connection: mockConnection,
+          clinicApiKey: "server-only-secret",
+        })),
         recordSyncOutcome: vi.fn(async () => undefined),
       },
       syncEngine: { executeSyncJob, deriveHealth: () => "HEALTHY" },
     });
     const row: EventRow = {
-      id: "ev-101", organization_id: mockConnection.tenantId,
-      event_type: "pms.initial_sync_requested", entity_kind: "pms_connection",
-      entity_id: mockConnection.id, payload: { connectionId: mockConnection.id, jobType: "initial_sync" },
-      metadata: {}, consumed_by: [], attempts: 0, created_at: new Date().toISOString(),
+      id: "ev-101",
+      organization_id: mockConnection.tenantId,
+      event_type: "pms.initial_sync_requested",
+      entity_kind: "pms_connection",
+      entity_id: mockConnection.id,
+      payload: { connectionId: mockConnection.id, jobType: "initial_sync" },
+      metadata: {},
+      consumed_by: [],
+      attempts: 0,
+      created_at: new Date().toISOString(),
     };
     const result = await processor(row);
     expect(result.status).toBe("ok");
@@ -177,19 +251,31 @@ describe("PMS sync worker event contract", () => {
   it("rejects malformed or cross-organization events", async () => {
     const processor = createPmsSyncEventProcessor({
       connectionRepository: {
-        getRuntimeConnection: vi.fn(async () => ({ connection: mockConnection, clinicApiKey: "x" })),
+        getRuntimeConnection: vi.fn(async () => ({
+          connection: mockConnection,
+          clinicApiKey: "x",
+        })),
         recordSyncOutcome: vi.fn(async () => undefined),
       },
       syncEngine: { executeSyncJob: vi.fn(), deriveHealth: () => "HEALTHY" },
     });
     const malformed = {
-      id: "ev-1", organization_id: mockConnection.tenantId, event_type: "pms.sync",
-      entity_kind: "pms_connection", entity_id: null, payload: {}, metadata: {}, consumed_by: [],
-      attempts: 0, created_at: new Date().toISOString(),
+      id: "ev-1",
+      organization_id: mockConnection.tenantId,
+      event_type: "pms.sync",
+      entity_kind: "pms_connection",
+      entity_id: null,
+      payload: {},
+      metadata: {},
+      consumed_by: [],
+      attempts: 0,
+      created_at: new Date().toISOString(),
     } as EventRow;
     await expect(processor(malformed)).resolves.toMatchObject({ status: "error" });
     const crossTenant = {
-      ...malformed, id: "ev-2", organization_id: "other-org",
+      ...malformed,
+      id: "ev-2",
+      organization_id: "other-org",
       payload: { connectionId: mockConnection.id, jobType: "initial_sync" },
     } as EventRow;
     const result = await processor(crossTenant);
