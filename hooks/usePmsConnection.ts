@@ -21,10 +21,8 @@ async function readEnvelope<T>(response: Response): Promise<T> {
   return body.data as T;
 }
 
-export function usePmsConnection(_tenantId: string, options?: UsePmsConnectionOptions) {
-  const [connection, setConnection] = useState<PmsConnection | null>(
-    options?.initialConnection ?? null
-  );
+export function usePmsConnection(options?: UsePmsConnectionOptions) {
+  const [connection, setConnection] = useState<PmsConnection | null>(options?.initialConnection ?? null);
   const [isLoading, setIsLoading] = useState(!options?.initialConnection);
   const [isTesting, setIsTesting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -55,9 +53,7 @@ export function usePmsConnection(_tenantId: string, options?: UsePmsConnectionOp
       .finally(() => {
         if (active) setIsLoading(false);
       });
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [options?.initialConnection, refreshConnection]);
 
   const configureConnection = useCallback(async (endpointUrl: string, clinicApiKey: string) => {
@@ -138,8 +134,7 @@ export function usePmsConnection(_tenantId: string, options?: UsePmsConnectionOp
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ syncEnabled: enabled }),
       });
-      const updated = await readEnvelope<PmsConnection>(response);
-      setConnection(updated);
+      setConnection(await readEnvelope<PmsConnection>(response));
     } catch (error: unknown) {
       setTestResult({
         success: false,
