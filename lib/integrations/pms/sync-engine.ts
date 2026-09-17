@@ -161,7 +161,7 @@ export class PmsSyncEngine {
           conflictsDetected++;
           errorsCount++;
           await this.recordAudit(connection.tenantId, connection.provider, "conflict_detected", {
-            externalId: contact.externalId,
+            externalRefHash: externalRefHash(connection.provider, "contact", contact.externalId),
             entityType: "contact",
             reason: error.message,
           });
@@ -252,7 +252,7 @@ export class PmsSyncEngine {
           conflictsDetected++;
           errorsCount++;
           await this.recordAudit(connection.tenantId, connection.provider, "conflict_detected", {
-            externalId: appointment.externalId,
+            externalRefHash: externalRefHash(connection.provider, "appointment", appointment.externalId),
             entityType: "appointment",
             reason: error.message,
           });
