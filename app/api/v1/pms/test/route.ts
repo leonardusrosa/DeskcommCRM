@@ -4,7 +4,6 @@ import { requireRole } from "@/lib/auth/require-role";
 import { pmsConnectionRepository } from "@/lib/integrations/pms/connection-repository";
 import { newSoftProductionConnector } from "@/lib/integrations/pms/newsoft-connector";
 import { isPlatformProviderEnabled } from "@/lib/integrations/pms/sync-engine";
-import { isPlatformProviderEnabled } from "@/lib/integrations/pms/sync-engine";
 import { createClient } from "@/lib/supabase/server";
 
 export async function POST(): Promise<Response> {
@@ -20,7 +19,6 @@ export async function POST(): Promise<Response> {
       { requestId },
     );
   }
-
 
   const { data, error } = await (await createClient())
     .from("pms_connections")
