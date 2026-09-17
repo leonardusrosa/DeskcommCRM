@@ -21,6 +21,8 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+const publicResolver = async () => [{ address: "1.1.1.1", family: 4 }];
+
 function makeBridgeFetch() {
   return vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input : input.url);
@@ -87,7 +89,7 @@ const mockConnection: PmsConnection = {
 describe("NewSoft DS HTTP bridge", () => {
   it("uses HTTPS and bearer auth for real bridge requests", async () => {
     const bridgeFetch = makeBridgeFetch();
-    const connector = new NewSoftProductionConnector(bridgeFetch as unknown as typeof fetch);
+    const connector = new NewSoftProductionConnector(bridgeFetch as unknown as typeof fetch, publicResolver);
     await expect(connector.testConnection(validConfig)).resolves.toBe(true);
     expect(String(bridgeFetch.mock.calls[0]?.[0])).toContain("/health");
     const headers = new Headers(bridgeFetch.mock.calls[0]?.[1]?.headers);
@@ -98,8 +100,20 @@ describe("NewSoft DS HTTP bridge", () => {
     await expect(connector.testConnection(insecure)).rejects.toThrow(/HTTPS required/);
   });
 
+  it("rejects private DNS targets before issuing the bridge request", async () => {
+    const bridgeFetch = makeBridgeFetch();
+    const privateResolver = async () => [{ address: "127.0.0.1", family: 4 }];
+    const connector = new NewSoftProductionConnector(
+      bridgeFetch as unknown as typeof fetch,
+      privateResolver,
+    );
+
+    await expect(connector.testConnection(validConfig)).rejects.toThrow(/private\/reserved network/i);
+    expect(bridgeFetch).not.toHaveBeenCalled();
+  });
+
   it("reads only allowlisted administrative contacts and appointments", async () => {
-    const connector = new NewSoftProductionConnector(makeBridgeFetch() as unknown as typeof fetch);
+    const connector = new NewSoftProductionConnector(makeBridgeFetch() as unknown as typeof fetch, publicResolver);
     const contacts = await connector.fetchContacts(validConfig, { limit: 10 });
     expect(contacts).toHaveLength(10);
     const appointments = await connector.fetchAppointments(validConfig, {
@@ -110,7 +124,7 @@ describe("NewSoft DS HTTP bridge", () => {
   });
 
   it("keeps writes disabled until explicitly enabled", async () => {
-    const connector = new NewSoftProductionConnector(makeBridgeFetch() as unknown as typeof fetch);
+    const connector = new NewSoftProductionConnector(makeBridgeFetch() as unknown as typeof fetch, publicResolver);
     const appointment = {
       patientExternalId: "ns-pat-1",
       start: "2026-09-21T10:00:00Z",
@@ -129,7 +143,7 @@ describe("NewSoft DS HTTP bridge", () => {
 
   it("fails closed on unexpected fields even when they are not keyword-blacklisted", async () => {
     const badFetch = vi.fn(async () => json({ items: [{ externalId: "1", name: "A", notes: "x" }] }));
-    const connector = new NewSoftProductionConnector(badFetch as unknown as typeof fetch);
+    const connector = new NewSoftProductionConnector(badFetch as unknown as typeof fetch, publicResolver);
     await expect(connector.fetchContacts(validConfig)).rejects.toThrow(/outside the administrative allowlist/);
   });
 });
@@ -139,7 +153,7 @@ describe("PMS sync engine", () => {
   let mappings: PmsMappingRepository;
 
   beforeEach(() => {
-    const connector = new NewSoftProductionConnector(makeBridgeFetch() as unknown as typeof fetch);
+    const connector = new NewSoftProductionConnector(makeBridgeFetch() as unknown as typeof fetch, publicResolver);
     mappings = new PmsMappingRepository();
     engine = new PmsSyncEngine(mappings, connector, new InMemoryPmsEntityProjector());
   });
@@ -182,7 +196,7 @@ describe("PMS sync engine", () => {
   });
 
   it("marks projection identity collisions as partial instead of auto-merging", async () => {
-    const connector = new NewSoftProductionConnector(makeBridgeFetch() as unknown as typeof fetch);
+    const connector = new NewSoftProductionConnector(makeBridgeFetch() as unknown as typeof fetch, publicResolver);
     const projector = new InMemoryPmsEntityProjector();
     projector.projectContact = vi.fn(async () => {
       throw new PmsProjectionConflictError("automatic merge forbidden");
@@ -231,7 +245,7 @@ describe("PMS sync engine", () => {
       }
       return json({ ok: true });
     });
-    const connector = new NewSoftProductionConnector(bridgeFetch as unknown as typeof fetch);
+    const connector = new NewSoftProductionConnector(bridgeFetch as unknown as typeof fetch, publicResolver);
     const repo = new PmsMappingRepository();
     const tombstone = repo.upsert({
       tenantId: mockConnection.tenantId,
