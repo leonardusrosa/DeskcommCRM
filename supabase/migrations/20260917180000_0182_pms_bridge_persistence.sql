@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS public.pms_external_mappings (
   entity_type TEXT NOT NULL CHECK (entity_type IN ('contact', 'appointment')),
   external_id TEXT NOT NULL,
   deskcomm_id TEXT NOT NULL,
-  external_version TEXT NOT NULL DEFAULT 'v1.0',
+  external_version TEXT NOT NULL,
   checksum TEXT NOT NULL,
   last_external_update_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   last_synced_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -55,6 +55,28 @@ CREATE TABLE IF NOT EXISTS public.pms_external_mappings (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT uq_pms_external_mappings_natural
     UNIQUE (organization_id, provider, entity_type, external_id)
+);
+
+-- Read-only administrative mirror of PMS appointments.
+-- It is intentionally NOT calendar_appointments: importing a PMS appointment
+-- must not trigger Deskcomm reminders, lead transitions, Google sync, or availability writes.
+CREATE TABLE IF NOT EXISTS public.pms_appointment_mirrors (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL CHECK (provider IN ('newsoft_ds', 'gesden', 'infomed_dentool')),
+  external_id TEXT NOT NULL,
+  patient_external_id TEXT,
+  contact_id UUID,
+  starts_at TIMESTAMPTZ NOT NULL,
+  ends_at TIMESTAMPTZ,
+  provider_label TEXT,
+  status TEXT NOT NULL,
+  appointment_label TEXT NOT NULL,
+  external_version TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT uq_pms_appointment_mirrors_natural
+    UNIQUE (organization_id, provider, external_id)
 );
 
 CREATE TABLE IF NOT EXISTS public.pms_audit_events (
@@ -74,6 +96,11 @@ CREATE INDEX IF NOT EXISTS idx_pms_mappings_lookup
   ON public.pms_external_mappings (organization_id, provider, entity_type);
 CREATE INDEX IF NOT EXISTS idx_pms_mappings_status
   ON public.pms_external_mappings (organization_id, sync_status);
+CREATE INDEX IF NOT EXISTS idx_pms_appointment_mirrors_window
+  ON public.pms_appointment_mirrors (organization_id, provider, starts_at);
+CREATE INDEX IF NOT EXISTS idx_pms_appointment_mirrors_contact
+  ON public.pms_appointment_mirrors (organization_id, contact_id)
+  WHERE contact_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_pms_audit_org_created
   ON public.pms_audit_events (organization_id, created_at DESC);
 
@@ -87,12 +114,19 @@ CREATE TRIGGER trg_pms_connection_secrets_touch
   BEFORE UPDATE ON public.pms_connection_secrets
   FOR EACH ROW EXECUTE FUNCTION public.fn_touch_updated_at();
 
+DROP TRIGGER IF EXISTS trg_pms_appointment_mirrors_touch ON public.pms_appointment_mirrors;
+CREATE TRIGGER trg_pms_appointment_mirrors_touch
+  BEFORE UPDATE ON public.pms_appointment_mirrors
+  FOR EACH ROW EXECUTE FUNCTION public.fn_touch_updated_at();
+
 ALTER TABLE public.pms_connections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pms_connection_secrets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pms_external_mappings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pms_appointment_mirrors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pms_audit_events ENABLE ROW LEVEL SECURITY;
 
 -- Metadata is visible/manageable only to tenant admins/platform admins.
+DROP POLICY IF EXISTS pms_connections_admin_only ON public.pms_connections;
 CREATE POLICY pms_connections_admin_only ON public.pms_connections
   FOR ALL
   USING (
@@ -103,24 +137,40 @@ CREATE POLICY pms_connections_admin_only ON public.pms_connections
     public.fn_role_at_least(organization_id, 'admin')
     OR public.fn_is_platform_admin()
   );
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.pms_connections TO authenticated;
 
 -- No policy on pms_connection_secrets: service-role only (BYPASSRLS).
 REVOKE ALL ON public.pms_connection_secrets FROM authenticated, anon;
 
 -- Mappings can be read by members of the tenant. Mutations are worker/service-role only.
+DROP POLICY IF EXISTS pms_external_mappings_select ON public.pms_external_mappings;
 CREATE POLICY pms_external_mappings_select ON public.pms_external_mappings
   FOR SELECT
   USING (
     organization_id IN (SELECT public.fn_user_org_ids())
     OR public.fn_is_platform_admin()
   );
+GRANT SELECT ON public.pms_external_mappings TO authenticated;
 REVOKE INSERT, UPDATE, DELETE ON public.pms_external_mappings FROM authenticated, anon;
 
+-- Appointment mirrors follow the same read-only tenant-member model as mappings.
+DROP POLICY IF EXISTS pms_appointment_mirrors_select ON public.pms_appointment_mirrors;
+CREATE POLICY pms_appointment_mirrors_select ON public.pms_appointment_mirrors
+  FOR SELECT
+  USING (
+    organization_id IN (SELECT public.fn_user_org_ids())
+    OR public.fn_is_platform_admin()
+  );
+GRANT SELECT ON public.pms_appointment_mirrors TO authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.pms_appointment_mirrors FROM authenticated, anon;
+
 -- Audit is readable by tenant admins/platform admins and written by service-role only.
+DROP POLICY IF EXISTS pms_audit_events_select ON public.pms_audit_events;
 CREATE POLICY pms_audit_events_select ON public.pms_audit_events
   FOR SELECT
   USING (
     public.fn_role_at_least(organization_id, 'admin')
     OR public.fn_is_platform_admin()
   );
+GRANT SELECT ON public.pms_audit_events TO authenticated;
 REVOKE INSERT, UPDATE, DELETE ON public.pms_audit_events FROM authenticated, anon;
