@@ -84,7 +84,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
   }
 
-  let pmsRedaction;
+  let pmsRedaction: Awaited<ReturnType<typeof suppressPmsDataForAnonymizedContact>>;
   try {
     pmsRedaction = await suppressPmsDataForAnonymizedContact(
       existing.organization_id,
