@@ -153,27 +153,14 @@ REVOKE INSERT, UPDATE, DELETE ON public.pms_connections FROM authenticated, anon
 -- No policy on pms_connection_secrets: service-role only (BYPASSRLS).
 REVOKE ALL ON public.pms_connection_secrets FROM authenticated, anon;
 
--- Mappings can be read by members of the tenant. Mutations are worker/service-role only.
+-- External ids and patient linkage are internal integration state.
+-- No tenant-facing PostgREST access: safe product surfaces must expose only the
+-- administrative fields they actually need.
 DROP POLICY IF EXISTS pms_external_mappings_select ON public.pms_external_mappings;
-CREATE POLICY pms_external_mappings_select ON public.pms_external_mappings
-  FOR SELECT
-  USING (
-    organization_id IN (SELECT public.fn_user_org_ids())
-    OR public.fn_is_platform_admin()
-  );
-GRANT SELECT ON public.pms_external_mappings TO authenticated;
-REVOKE INSERT, UPDATE, DELETE ON public.pms_external_mappings FROM authenticated, anon;
+REVOKE ALL ON public.pms_external_mappings FROM authenticated, anon;
 
--- Appointment mirrors follow the same read-only tenant-member model as mappings.
 DROP POLICY IF EXISTS pms_appointment_mirrors_select ON public.pms_appointment_mirrors;
-CREATE POLICY pms_appointment_mirrors_select ON public.pms_appointment_mirrors
-  FOR SELECT
-  USING (
-    organization_id IN (SELECT public.fn_user_org_ids())
-    OR public.fn_is_platform_admin()
-  );
-GRANT SELECT ON public.pms_appointment_mirrors TO authenticated;
-REVOKE INSERT, UPDATE, DELETE ON public.pms_appointment_mirrors FROM authenticated, anon;
+REVOKE ALL ON public.pms_appointment_mirrors FROM authenticated, anon;
 
 -- Audit is readable by tenant admins/platform admins and written by service-role only.
 DROP POLICY IF EXISTS pms_audit_events_select ON public.pms_audit_events;
