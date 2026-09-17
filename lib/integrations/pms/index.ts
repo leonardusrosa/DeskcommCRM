@@ -5,6 +5,7 @@ export * from "./clinical-guard";
 export * from "./capabilities";
 export * from "./credentials";
 export * from "./mapping";
+export * from "./entity-projector";
 export * from "./connection-repository";
 export * from "./newsoft-connector";
 export * from "./sync-engine";
