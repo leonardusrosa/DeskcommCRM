@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireAuth, resolveActiveOrg } from "@/lib/auth/server";
 import { ROLE_RANK } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/server";
+import { PmsConnectionPanel } from "@/components/admin/pms/PmsConnectionPanel";
 import { TenantForm } from "./_form";
 
 export const dynamic = "force-dynamic";
@@ -44,11 +45,11 @@ export default async function TenantSettingsPage() {
       : []) as string[];
 
   return (
-    <div className="flex h-full flex-col gap-6 p-6">
+    <div className="flex h-full flex-col gap-8 p-6">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Organização</h1>
         <p className="text-sm text-muted-foreground">
-          Dados da empresa, retenção de mídia, DPO. Admin only.
+          Dados da empresa, retenção de mídia, DPO e integrações administrativas. Admin only.
         </p>
       </header>
       {row && (
@@ -58,8 +59,6 @@ export default async function TenantSettingsPage() {
             legal_name: row.legal_name,
             cnpj: row.cnpj,
             timezone: row.timezone,
-            // `en-US` saiu da lista (nunca teve tradução). Uma linha antiga
-            // com ele cai no padrão em vez de quebrar a tela.
             locale: row.locale === "es" ? "es" : "pt-BR",
             media_retention_days: row.media_retention_days,
             dpo_email: row.dpo_email,
@@ -72,6 +71,15 @@ export default async function TenantSettingsPage() {
           }}
         />
       )}
+      <section className="border-t pt-8" aria-labelledby="pms-title">
+        <div className="mb-4">
+          <h2 id="pms-title" className="text-xl font-semibold tracking-tight">PMS Dental</h2>
+          <p className="text-sm text-muted-foreground">
+            Ligação administrativa NewSoft DS. Gesden permanece no processo formal de parceria/exportação.
+          </p>
+        </div>
+        <PmsConnectionPanel />
+      </section>
     </div>
   );
 }
