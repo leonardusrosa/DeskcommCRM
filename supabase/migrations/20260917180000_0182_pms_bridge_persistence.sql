@@ -13,9 +13,6 @@ CREATE TABLE IF NOT EXISTS public.pms_connections (
   sync_enabled BOOLEAN NOT NULL DEFAULT TRUE,
   appointment_write_enabled BOOLEAN NOT NULL DEFAULT FALSE,
   endpoint_url TEXT NOT NULL CHECK (endpoint_url ~ '^https://'),
-  credential_ciphertext TEXT NOT NULL,
-  credential_iv TEXT NOT NULL,
-  credential_tag TEXT NOT NULL,
   last4 TEXT NOT NULL DEFAULT '0000',
   capabilities JSONB NOT NULL DEFAULT '{}'::jsonb,
   last_sync_at TIMESTAMPTZ,
@@ -24,6 +21,20 @@ CREATE TABLE IF NOT EXISTS public.pms_connections (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT uq_pms_connections_org_provider UNIQUE (organization_id, provider)
+);
+
+-- Encrypted credential material is deliberately separated from tenant-visible
+-- connection metadata. No authenticated/anon policy is created for this table;
+-- server workers access it with the service role and explicit organization_id.
+CREATE TABLE IF NOT EXISTS public.pms_connection_secrets (
+  connection_id UUID PRIMARY KEY REFERENCES public.pms_connections(id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  credential_ciphertext TEXT NOT NULL,
+  credential_iv TEXT NOT NULL,
+  credential_tag TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT uq_pms_connection_secrets_org_connection UNIQUE (organization_id, connection_id)
 );
 
 CREATE TABLE IF NOT EXISTS public.pms_external_mappings (
@@ -57,6 +68,8 @@ CREATE TABLE IF NOT EXISTS public.pms_audit_events (
 
 CREATE INDEX IF NOT EXISTS idx_pms_connections_org
   ON public.pms_connections (organization_id);
+CREATE INDEX IF NOT EXISTS idx_pms_connection_secrets_org
+  ON public.pms_connection_secrets (organization_id);
 CREATE INDEX IF NOT EXISTS idx_pms_mappings_lookup
   ON public.pms_external_mappings (organization_id, provider, entity_type);
 CREATE INDEX IF NOT EXISTS idx_pms_mappings_status
@@ -69,11 +82,17 @@ CREATE TRIGGER trg_pms_connections_touch
   BEFORE UPDATE ON public.pms_connections
   FOR EACH ROW EXECUTE FUNCTION public.fn_touch_updated_at();
 
+DROP TRIGGER IF EXISTS trg_pms_connection_secrets_touch ON public.pms_connection_secrets;
+CREATE TRIGGER trg_pms_connection_secrets_touch
+  BEFORE UPDATE ON public.pms_connection_secrets
+  FOR EACH ROW EXECUTE FUNCTION public.fn_touch_updated_at();
+
 ALTER TABLE public.pms_connections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pms_connection_secrets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pms_external_mappings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pms_audit_events ENABLE ROW LEVEL SECURITY;
 
--- Connection configuration and encrypted credentials are admin-only.
+-- Metadata is visible/manageable only to tenant admins/platform admins.
 CREATE POLICY pms_connections_admin_only ON public.pms_connections
   FOR ALL
   USING (
@@ -85,30 +104,23 @@ CREATE POLICY pms_connections_admin_only ON public.pms_connections
     OR public.fn_is_platform_admin()
   );
 
--- Administrative mappings are tenant-scoped; API RBAC controls mutation paths.
-CREATE POLICY pms_external_mappings_tenant_isolation ON public.pms_external_mappings
-  FOR ALL
+-- No policy on pms_connection_secrets: service-role only (BYPASSRLS).
+REVOKE ALL ON public.pms_connection_secrets FROM authenticated, anon;
+
+-- Mappings can be read by members of the tenant. Mutations are worker/service-role only.
+CREATE POLICY pms_external_mappings_select ON public.pms_external_mappings
+  FOR SELECT
   USING (
     organization_id IN (SELECT public.fn_user_org_ids())
     OR public.fn_is_platform_admin()
-  )
-  WITH CHECK (
-    organization_id IN (SELECT public.fn_user_org_ids())
-    OR public.fn_is_platform_admin()
   );
+REVOKE INSERT, UPDATE, DELETE ON public.pms_external_mappings FROM authenticated, anon;
 
--- Audit is readable by tenant admins/platform admins and append-only to app roles.
+-- Audit is readable by tenant admins/platform admins and written by service-role only.
 CREATE POLICY pms_audit_events_select ON public.pms_audit_events
   FOR SELECT
   USING (
     public.fn_role_at_least(organization_id, 'admin')
     OR public.fn_is_platform_admin()
   );
-
-CREATE POLICY pms_audit_events_insert ON public.pms_audit_events
-  FOR INSERT WITH CHECK (
-    organization_id IN (SELECT public.fn_user_org_ids())
-    OR public.fn_is_platform_admin()
-  );
-
-REVOKE UPDATE, DELETE ON public.pms_audit_events FROM authenticated, anon;
+REVOKE INSERT, UPDATE, DELETE ON public.pms_audit_events FROM authenticated, anon;
