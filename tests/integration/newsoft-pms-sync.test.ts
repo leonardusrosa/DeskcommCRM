@@ -201,6 +201,76 @@ describe("PMS sync engine", () => {
     expect(result.errorsCount).toBe(25);
     expect(result.appointmentsMapped).toBe(60);
   });
+
+
+  it("honors disabled contact tombstones and does not recreate patient appointment mirrors", async () => {
+    const bridgeFetch = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(typeof input === "string" ? input : input instanceof URL ? input : input.url);
+      if (url.pathname.endsWith("/contacts")) {
+        return json({
+          items: [{
+            externalId: "ns-pat-redacted-1",
+            name: "Pessoa Redigida",
+            phone: "+351912345678",
+            email: "redacted@example.test",
+          }],
+        });
+      }
+      if (url.pathname.endsWith("/appointments")) {
+        return json({
+          items: [{
+            externalId: "ns-apt-redacted-1",
+            patientExternalId: "ns-pat-redacted-1",
+            start: "2026-09-21T10:00:00Z",
+            end: "2026-09-21T10:30:00Z",
+            provider: "Dr. Silva",
+            status: "CONFIRMED",
+            appointmentLabel: "Consulta",
+          }],
+        });
+      }
+      return json({ ok: true });
+    });
+    const connector = new NewSoftProductionConnector(bridgeFetch as unknown as typeof fetch);
+    const repo = new PmsMappingRepository();
+    const tombstone = repo.upsert({
+      tenantId: mockConnection.tenantId,
+      provider: "newsoft_ds",
+      entityType: "contact",
+      externalId: "ns-pat-redacted-1",
+      deskcommId: "1c9e3c52-cda7-4bcc-aee8-3cc24bb83d2c",
+      externalVersion: "redacted",
+      lastExternalUpdateAt: "2026-09-17T00:00:00Z",
+    }).record;
+    tombstone.syncStatus = "disabled";
+
+    const projector = new InMemoryPmsEntityProjector();
+    const contactProjection = vi.spyOn(projector, "projectContact");
+    const appointmentProjection = vi.spyOn(projector, "projectAppointment");
+    const tombstoneEngine = new PmsSyncEngine(repo, connector, projector);
+
+    const result = await tombstoneEngine.executeSyncJob({
+      connection: mockConnection,
+      config: validConfig,
+      jobType: "incremental_sync",
+    });
+
+    expect(result.status).toBe("SUCCESS");
+    expect(result.contactsRead).toBe(1);
+    expect(result.contactsMapped).toBe(0);
+    expect(result.appointmentsRead).toBe(1);
+    expect(result.appointmentsMapped).toBe(0);
+    expect(contactProjection).not.toHaveBeenCalled();
+    expect(appointmentProjection).not.toHaveBeenCalled();
+    expect(
+      repo.getByExternalId(
+        mockConnection.tenantId,
+        "newsoft_ds",
+        "appointment",
+        "ns-apt-redacted-1",
+      ),
+    ).toBeNull();
+  });
 });
 
 describe("PMS sync worker event contract", () => {
