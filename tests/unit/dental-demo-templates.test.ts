@@ -4,6 +4,8 @@ import { assertDemoProvisioningAllowed } from "@/lib/demo/safety";
 import { DENTAL_DEMO_TEMPLATES, getDentalDemoTemplate } from "@/lib/demo/templates";
 import { normalizarIdioma } from "@/lib/i18n/idiomas";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { FUSOS_OFERECIDOS } from "@/lib/tempo/fusos";
+import { readFileSync } from "node:fs";
 
 describe("dental demo templates — lead readiness", () => {
   it("ships exactly the four target-market dental templates", () => {
@@ -74,6 +76,20 @@ describe("dental demo templates — lead readiness", () => {
       timezone: "Europe/Lisbon",
       currency: "EUR",
     });
+  });
+
+  it("offers target-market timezones and the pt-PT profile option", () => {
+    const zones = FUSOS_OFERECIDOS.map((item) => item.codigo);
+    expect(zones).toEqual(expect.arrayContaining([
+      "America/Bogota",
+      "America/Mexico_City",
+      "Europe/Madrid",
+      "Europe/Lisbon",
+    ]));
+
+    const profileForm = readFileSync("app/app/settings/profile/_form.tsx", "utf8");
+    expect(profileForm).toContain('value="pt-PT"');
+    expect(profileForm).toContain("FUSOS_OFERECIDOS");
   });
 
   it("normalizes regional locales and exposes pt-PT high-visibility vocabulary", () => {
