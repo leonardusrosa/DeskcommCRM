@@ -5,16 +5,12 @@
  * Garante:
  *  - Formato consistente { data, meta? } / { error: { code, message, details? } }
  *  - Header X-Request-Id correlacionando com audit log
- *  - Status codes corretos (200/201/204/400/401/403/404/409/422/429/500)
+ *  - Status codes corretos (200/201/202/204/400/401/403/404/409/422/429/500)
  */
 
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import type { ApiErrorCode } from "@/lib/api/errors";
-
-// -----------------------------------------------------------------------------
-// Tipos públicos
-// -----------------------------------------------------------------------------
 
 export type CursorMeta = {
   cursor?: string | null;
@@ -37,12 +33,8 @@ export type ApiError = {
 
 export type ApiResponse<T> = ApiSuccess<T> | ApiError;
 
-// -----------------------------------------------------------------------------
-// Helpers
-// -----------------------------------------------------------------------------
-
 type OkOptions = {
-  status?: 200 | 201 | 204;
+  status?: 200 | 201 | 202 | 204;
   meta?: ApiSuccess<unknown>["meta"];
   requestId?: string;
   headers?: HeadersInit;
@@ -51,7 +43,6 @@ type OkOptions = {
 export function ok<T>(data: T, opts: OkOptions = {}): NextResponse<ApiSuccess<T>> {
   const { status = 200, meta, requestId, headers } = opts;
   const body: ApiSuccess<T> = meta ? { data, meta } : { data };
-
   const res = NextResponse.json(body, { status, headers });
   res.headers.set("X-Request-Id", requestId ?? randomUUID());
   return res;
@@ -76,15 +67,10 @@ export function fail(
       ...(opts.details !== undefined ? { details: opts.details } : {}),
     },
   };
-
   const res = NextResponse.json(body, { status, headers: opts.headers });
   res.headers.set("X-Request-Id", opts.requestId ?? randomUUID());
   return res;
 }
-
-// -----------------------------------------------------------------------------
-// Atalhos comuns
-// -----------------------------------------------------------------------------
 
 export const noContent = (requestId?: string) => {
   const res = new NextResponse(null, { status: 204 });
