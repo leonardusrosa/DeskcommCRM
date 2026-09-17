@@ -1,68 +1,100 @@
-/**
- * hooks/usePmsConnection.ts
- *
- * Custom hook managing tenant PMS connection state, testing,
- * background sync triggers, and emergency kill switch toggling.
- */
+"use client";
 
-import { useState, useCallback } from "react";
-import type {
-  PmsConnection,
-  PmsHealthState,
-  PmsProviderName,
-  PmsSyncResult,
-} from "@/lib/integrations/pms";
+import { useCallback, useEffect, useState } from "react";
+import type { PmsConnection, PmsSyncResult } from "@/lib/integrations/pms/types";
 
 export interface UsePmsConnectionOptions {
   initialConnection?: PmsConnection;
   onSyncComplete?: (result: PmsSyncResult) => void;
 }
 
-export function usePmsConnection(tenantId: string, options?: UsePmsConnectionOptions) {
-  const [connection, setConnection] = useState<PmsConnection | null>(
-    options?.initialConnection ?? {
-      id: `pms-${tenantId}`,
-      tenantId,
-      provider: "newsoft_ds",
-      status: "connected",
-      health: "HEALTHY",
-      syncEnabled: true,
-      appointmentWriteEnabled: false,
-      endpointUrl: "https://api.imaginasoft.pt/v24/sync-bridge",
-      encryptedSecretRef: `enc-${tenantId}`,
-      last4: "8492",
-      capabilities: {
-        contactsRead: true,
-        appointmentsRead: true,
-        appointmentsCreate: true,
-        appointmentsUpdate: true,
-        appointmentsCancel: true,
-        realtimeWebhooks: true,
-        incrementalSync: true,
-      },
-      lastSyncAt: "2026-09-17T12:00:00.000Z",
-      lastSuccessAt: "2026-09-17T12:00:00.000Z",
-      createdAt: "2026-09-17T10:00:00.000Z",
-      updatedAt: "2026-09-17T12:00:00.000Z",
-    }
-  );
+interface ApiEnvelope<T> {
+  data?: T;
+  error?: { code?: string; message?: string };
+}
 
+async function readEnvelope<T>(response: Response): Promise<T> {
+  const body = (await response.json().catch(() => ({}))) as ApiEnvelope<T>;
+  if (!response.ok) {
+    throw new Error(body.error?.message || `PMS request failed (${response.status})`);
+  }
+  return body.data as T;
+}
+
+export function usePmsConnection(_tenantId: string, options?: UsePmsConnectionOptions) {
+  const [connection, setConnection] = useState<PmsConnection | null>(
+    options?.initialConnection ?? null
+  );
+  const [isLoading, setIsLoading] = useState(!options?.initialConnection);
   const [isTesting, setIsTesting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [lastSyncResult, setLastSyncResult] = useState<PmsSyncResult | null>(null);
+  const [lastSyncResult] = useState<PmsSyncResult | null>(null);
+
+  const refreshConnection = useCallback(async () => {
+    const response = await fetch("/api/v1/pms", { cache: "no-store" });
+    const data = await readEnvelope<PmsConnection | null>(response);
+    setConnection(data);
+    return data;
+  }, []);
+
+  useEffect(() => {
+    if (options?.initialConnection) return;
+    let active = true;
+    setIsLoading(true);
+    refreshConnection()
+      .catch((error: unknown) => {
+        if (active) {
+          setTestResult({
+            success: false,
+            message: error instanceof Error ? error.message : "Falha ao carregar ligação PMS.",
+          });
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [options?.initialConnection, refreshConnection]);
+
+  const configureConnection = useCallback(async (endpointUrl: string, clinicApiKey: string) => {
+    setIsSaving(true);
+    setTestResult(null);
+    try {
+      const response = await fetch("/api/v1/pms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpointUrl, clinicApiKey }),
+      });
+      const saved = await readEnvelope<PmsConnection>(response);
+      setConnection(saved);
+      setTestResult({ success: true, message: "Ligação PMS guardada com credencial cifrada." });
+      return saved;
+    } catch (error: unknown) {
+      setTestResult({
+        success: false,
+        message: error instanceof Error ? error.message : "Falha ao guardar ligação PMS.",
+      });
+      return null;
+    } finally {
+      setIsSaving(false);
+    }
+  }, []);
 
   const testConnection = useCallback(async () => {
     setIsTesting(true);
     setTestResult(null);
     try {
-      // Simulate connection testing to the vendor bridge
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      setTestResult({ success: true, message: "Ligação ao NewSoft Sync Bridge estabelecida com sucesso." });
-    } catch (err: unknown) {
+      const response = await fetch("/api/v1/pms/test", { method: "POST" });
+      await readEnvelope<{ success: boolean }>(response);
+      setTestResult({ success: true, message: "Ligação ao bridge PMS confirmada pelo servidor." });
+    } catch (error: unknown) {
       setTestResult({
         success: false,
-        message: err instanceof Error ? err.message : "Falha ao testar ligação com o fornecedor PMS.",
+        message: error instanceof Error ? error.message : "Falha ao testar ligação PMS.",
       });
     } finally {
       setIsTesting(false);
@@ -70,80 +102,64 @@ export function usePmsConnection(tenantId: string, options?: UsePmsConnectionOpt
   }, []);
 
   const triggerSync = useCallback(
-    async (_jobType: "initial_sync" | "incremental_sync" = "incremental_sync") => {
-      if (!connection || !connection.syncEnabled) return;
+    async (jobType: "initial_sync" | "incremental_sync" = "incremental_sync") => {
+      if (!connection?.syncEnabled) return;
       setIsSyncing(true);
+      setTestResult(null);
       try {
-        await new Promise((resolve) => setTimeout(resolve, 400));
-        const result: PmsSyncResult = {
-          tenantId,
-          provider: connection.provider,
-          syncRunId: `sync-${Date.now().toString().slice(-6)}`,
-          status: "SUCCESS",
-          contactsRead: 85,
-          contactsMapped: 85,
-          appointmentsRead: 60,
-          appointmentsMapped: 60,
-          duplicatesDetected: 0,
-          conflictsDetected: 0,
-          errorsCount: 0,
-          durationMs: 380,
-          syncedAt: new Date().toISOString(),
-        };
-        setLastSyncResult(result);
-        setConnection((prev) =>
-          prev
-            ? {
-                ...prev,
-                health: "HEALTHY",
-                lastSyncAt: result.syncedAt,
-                lastSuccessAt: result.syncedAt,
-              }
-            : null
-        );
-        options?.onSyncComplete?.(result);
+        const response = await fetch("/api/v1/pms/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobType }),
+        });
+        await readEnvelope<{ queued: boolean; eventId: string; jobType: string }>(response);
+        setTestResult({
+          success: true,
+          message: "Sincronização enfileirada. O worker processará a ligação sem expor credenciais.",
+        });
+        await refreshConnection();
+      } catch (error: unknown) {
+        setTestResult({
+          success: false,
+          message: error instanceof Error ? error.message : "Falha ao enfileirar sincronização PMS.",
+        });
       } finally {
         setIsSyncing(false);
       }
     },
-    [connection, tenantId, options]
+    [connection?.syncEnabled, refreshConnection]
   );
 
   const toggleSyncEnabled = useCallback(async (enabled: boolean) => {
-    setConnection((prev) =>
-      prev
-        ? {
-            ...prev,
-            syncEnabled: enabled,
-            health: enabled ? "HEALTHY" : ("DISABLED" as PmsHealthState),
-            updatedAt: new Date().toISOString(),
-          }
-        : null
-    );
-  }, []);
-
-  const changeProvider = useCallback(async (newProvider: PmsProviderName) => {
-    setConnection((prev) =>
-      prev
-        ? {
-            ...prev,
-            provider: newProvider,
-            health: newProvider === "gesden" ? "DEGRADED" : "HEALTHY",
-            updatedAt: new Date().toISOString(),
-          }
-        : null
-    );
+    setTestResult(null);
+    try {
+      const response = await fetch("/api/v1/pms", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ syncEnabled: enabled }),
+      });
+      const updated = await readEnvelope<PmsConnection>(response);
+      setConnection(updated);
+    } catch (error: unknown) {
+      setTestResult({
+        success: false,
+        message: error instanceof Error ? error.message : "Falha ao alterar kill switch PMS.",
+      });
+    }
   }, []);
 
   return {
     connection,
+    isLoading,
     isTesting,
     isSyncing,
+    isSaving,
     testResult,
     lastSyncResult,
+    refreshConnection,
+    configureConnection,
     testConnection,
     triggerSync,
     toggleSyncEnabled,
-    changeProvider,
   };
 }
