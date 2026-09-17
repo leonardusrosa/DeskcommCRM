@@ -68,15 +68,15 @@ export class NewSoftProductionConnector {
     query?: Record<string, string | undefined>
   ): Promise<unknown> {
     this.assertConfig(config);
+    const headers = new Headers(init?.headers);
+    headers.set("Accept", "application/json");
+    headers.set("Authorization", `Bearer ${config.clinicApiKey}`);
+    headers.set("X-Deskcomm-Tenant", config.tenantId);
+    if (init?.body) headers.set("Content-Type", "application/json");
+
     const response = await this.fetchImpl(bridgeUrl(config.endpointUrl, path, query), {
       ...init,
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${config.clinicApiKey}`,
-        "X-Deskcomm-Tenant": config.tenantId,
-        ...(init?.body ? { "Content-Type": "application/json" } : {}),
-        ...(init?.headers || {}),
-      },
+      headers,
       signal: init?.signal ?? AbortSignal.timeout(15_000),
     });
 
