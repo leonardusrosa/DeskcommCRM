@@ -28,11 +28,14 @@ export async function POST(req: NextRequest): Promise<Response> {
     .from("pms_connections")
     .select("id,sync_enabled")
     .eq("organization_id", authz.org.orgId)
+    .eq("provider", "newsoft_ds")
     .maybeSingle();
   if (connectionError) {
     return fail("pms_read_failed", connectionError.message, 500, { requestId });
   }
-  if (!connection) return fail("pms_not_configured", "No PMS connection configured.", 404, { requestId });
+  if (!connection) {
+    return fail("pms_not_configured", "No NewSoft PMS connection configured.", 404, { requestId });
+  }
   if (!connection.sync_enabled) {
     return fail("pms_sync_disabled", "PMS synchronization is disabled.", 409, { requestId });
   }
