@@ -1,14 +1,10 @@
-/**
- * lib/integrations/pms/sync-engine.ts
- *
- * Core synchronization engine for PMS background sync jobs.
- * Orchestrates bounded, idempotent sync runs, health checks, conflict handling,
- * and security audit logging.
- */
+/** Core bounded PMS synchronization engine. */
 
 import crypto from "node:crypto";
-import { defaultMappingRepository, type PmsMappingRepository } from "./mapping";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { defaultMappingRepository, type PmsMappingStore } from "./mapping";
 import { newSoftProductionConnector, type NewSoftConnectorConfig } from "./newsoft-connector";
+import { sanitizeCredentialsForAudit } from "./credentials";
 import type {
   PmsAuditEvent,
   PmsConnection,
@@ -17,7 +13,6 @@ import type {
   PmsSyncResult,
 } from "./types";
 
-// Platform-level kill switch store
 const disabledProviders = new Set<PmsProviderName>();
 
 export function isPlatformProviderEnabled(provider: PmsProviderName): boolean {
@@ -25,20 +20,20 @@ export function isPlatformProviderEnabled(provider: PmsProviderName): boolean {
 }
 
 export function setPlatformProviderEnabled(provider: PmsProviderName, enabled: boolean): void {
-  if (enabled) {
-    disabledProviders.delete(provider);
-  } else {
-    disabledProviders.add(provider);
-  }
+  if (enabled) disabledProviders.delete(provider);
+  else disabledProviders.add(provider);
 }
 
 export class PmsSyncEngine {
   private auditLogs: PmsAuditEvent[] = [];
+  private readonly durableRuntime: boolean;
 
   constructor(
-    private mappingRepo: PmsMappingRepository = defaultMappingRepository,
+    private mappingRepo: PmsMappingStore = defaultMappingRepository,
     private connector = newSoftProductionConnector
-  ) {}
+  ) {
+    this.durableRuntime = mappingRepo === defaultMappingRepository;
+  }
 
   public async executeSyncJob(params: {
     connection: PmsConnection;
@@ -50,23 +45,20 @@ export class PmsSyncEngine {
     const startTime = Date.now();
     const syncRunId = `sync-${crypto.randomUUID().slice(0, 8)}`;
 
-    // 1. Check Platform & Connection Kill Switches
     if (!isPlatformProviderEnabled(connection.provider)) {
-      this.recordAudit(connection.tenantId, connection.provider, "sync_failed", {
+      await this.recordAudit(connection.tenantId, connection.provider, "sync_failed", {
         reason: "Provider disabled at platform level",
       });
       throw new Error(`[PMS Sync Aborted] Provider "${connection.provider}" is disabled by platform kill switch.`);
     }
-
     if (!connection.syncEnabled) {
-      this.recordAudit(connection.tenantId, connection.provider, "sync_failed", {
+      await this.recordAudit(connection.tenantId, connection.provider, "sync_failed", {
         reason: "Sync disabled for tenant connection",
       });
       throw new Error(`[PMS Sync Aborted] Synchronization is disabled for tenant "${connection.tenantId}".`);
     }
 
-    // 2. Audit start
-    this.recordAudit(
+    await this.recordAudit(
       connection.tenantId,
       connection.provider,
       jobType === "initial_sync" ? "initial_sync_started" : "connection_enabled",
@@ -82,14 +74,13 @@ export class PmsSyncEngine {
     let errorsCount = 0;
 
     try {
-      // 3. Fetch and map administrative contacts
       const contacts = await this.connector.fetchContacts(config, {
         limit: jobType === "initial_sync" ? 100 : 25,
       });
       contactsRead = contacts.length;
 
       for (const contact of contacts) {
-        const res = this.mappingRepo.upsert({
+        const res = await this.mappingRepo.upsert({
           tenantId: connection.tenantId,
           provider: connection.provider,
           entityType: "contact",
@@ -98,21 +89,16 @@ export class PmsSyncEngine {
           externalVersion: "v1.0",
           lastExternalUpdateAt: new Date().toISOString(),
         });
-
-        if (res.isDuplicate) {
-          duplicatesDetected++;
-        } else {
-          contactsMapped++;
-        }
+        if (res.isDuplicate) duplicatesDetected++;
+        else contactsMapped++;
         if (res.conflictDetected) {
           conflictsDetected++;
-          this.recordAudit(connection.tenantId, connection.provider, "conflict_detected", {
+          await this.recordAudit(connection.tenantId, connection.provider, "conflict_detected", {
             externalId: contact.externalId,
           });
         }
       }
 
-      // 4. Fetch and map appointments window
       const windowDays = params.windowDays ?? 14;
       const appointments = await this.connector.fetchAppointments(config, {
         startDate: new Date().toISOString(),
@@ -120,38 +106,32 @@ export class PmsSyncEngine {
       });
       appointmentsRead = appointments.length;
 
-      for (const apt of appointments) {
-        const res = this.mappingRepo.upsert({
+      for (const appointment of appointments) {
+        const res = await this.mappingRepo.upsert({
           tenantId: connection.tenantId,
           provider: connection.provider,
           entityType: "appointment",
-          externalId: apt.externalId,
-          deskcommId: `dk-a-${apt.externalId}`,
+          externalId: appointment.externalId,
+          deskcommId: `dk-a-${appointment.externalId}`,
           externalVersion: "v1.0",
           lastExternalUpdateAt: new Date().toISOString(),
         });
-
-        if (res.isDuplicate) {
-          duplicatesDetected++;
-        } else {
-          appointmentsMapped++;
-        }
+        if (res.isDuplicate) duplicatesDetected++;
+        else appointmentsMapped++;
         if (res.conflictDetected) {
           conflictsDetected++;
-          this.recordAudit(connection.tenantId, connection.provider, "conflict_detected", {
-            externalId: apt.externalId,
+          await this.recordAudit(connection.tenantId, connection.provider, "conflict_detected", {
+            externalId: appointment.externalId,
           });
         }
       }
 
-      // 5. Audit completion
-      this.recordAudit(connection.tenantId, connection.provider, "initial_sync_completed", {
+      await this.recordAudit(connection.tenantId, connection.provider, "initial_sync_completed", {
         syncRunId,
         contactsMapped,
         appointmentsMapped,
       });
 
-      const durationMs = Date.now() - startTime;
       return {
         tenantId: connection.tenantId,
         provider: connection.provider,
@@ -164,17 +144,17 @@ export class PmsSyncEngine {
         duplicatesDetected,
         conflictsDetected,
         errorsCount,
-        durationMs,
+        durationMs: Date.now() - startTime,
         syncedAt: new Date().toISOString(),
       };
-    } catch (err: unknown) {
+    } catch (error: unknown) {
       errorsCount++;
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      this.recordAudit(connection.tenantId, connection.provider, "sync_failed", {
+      const message = error instanceof Error ? error.message : String(error);
+      await this.recordAudit(connection.tenantId, connection.provider, "sync_failed", {
         syncRunId,
-        error: errorMessage,
+        error: message,
       });
-      throw err;
+      throw error;
     }
   }
 
@@ -187,27 +167,38 @@ export class PmsSyncEngine {
   }
 
   public getAuditLogs(tenantId?: string): PmsAuditEvent[] {
-    return tenantId ? this.auditLogs.filter((a) => a.tenantId === tenantId) : this.auditLogs;
+    return tenantId ? this.auditLogs.filter((event) => event.tenantId === tenantId) : this.auditLogs;
   }
 
   public clearAudit(): void {
     this.auditLogs = [];
   }
 
-  private recordAudit(
+  private async recordAudit(
     tenantId: string,
     provider: PmsProviderName,
     action: PmsAuditEvent["action"],
     metadata?: Record<string, unknown>
-  ): void {
-    this.auditLogs.push({
+  ): Promise<void> {
+    const safeMetadata = metadata ? sanitizeCredentialsForAudit(metadata) : undefined;
+    const event: PmsAuditEvent = {
       id: `audit-${crypto.randomUUID().slice(0, 8)}`,
       tenantId,
       provider,
       action,
-      metadata,
+      metadata: safeMetadata,
       timestamp: new Date().toISOString(),
+    };
+    this.auditLogs.push(event);
+
+    if (!this.durableRuntime) return;
+    const { error } = await createAdminClient().from("pms_audit_events").insert({
+      organization_id: tenantId,
+      provider,
+      action,
+      metadata: safeMetadata || {},
     });
+    if (error) throw new Error(`[PMS Audit] Persist failed: ${error.message}`);
   }
 }
 
