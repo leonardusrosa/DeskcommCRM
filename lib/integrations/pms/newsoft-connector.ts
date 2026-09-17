@@ -1,11 +1,6 @@
 /**
- * lib/integrations/pms/newsoft-connector.ts
- *
- * Production NewSoft DS connector implementing the Imaginasoft Partner Sync Bridge.
- * Enforces:
- *   - Fail-closed non-clinical boundary guard on all incoming/outgoing payloads
- *   - Read-first safety (appointment creation gated behind write-enabled flag)
- *   - Multi-tenant credential scoping
+ * NewSoft DS normalized partner-bridge connector.
+ * The configured endpoint is the clinic/partner bridge root; no synthetic records exist in runtime.
  */
 
 import {
@@ -27,20 +22,73 @@ export interface NewSoftConnectorConfig {
   appointmentWriteEnabled?: boolean;
 }
 
+type FetchLike = typeof fetch;
+
+function bridgeUrl(base: string, path: string, query?: Record<string, string | undefined>): string {
+  const root = base.endsWith("/") ? base : `${base}/`;
+  const url = new URL(path.replace(/^\//, ""), root);
+  for (const [key, value] of Object.entries(query || {})) {
+    if (value !== undefined) url.searchParams.set(key, value);
+  }
+  return url.toString();
+}
+
+function asItems(payload: unknown): Record<string, unknown>[] {
+  if (Array.isArray(payload)) return payload as Record<string, unknown>[];
+  if (payload && typeof payload === "object") {
+    const record = payload as Record<string, unknown>;
+    const candidate = record.items ?? record.data ?? record.results;
+    if (Array.isArray(candidate)) return candidate as Record<string, unknown>[];
+  }
+  throw new Error("[NewSoft Contract] Expected an array or {items|data|results: []} response");
+}
+
 export class NewSoftProductionConnector {
   public readonly providerName: PmsProviderName = "newsoft_ds";
+
+  constructor(private readonly fetchImpl: FetchLike = fetch) {}
 
   public getCapabilities(): PmsCapabilityModel {
     return { ...NEWSOFT_CAPABILITIES };
   }
 
-  public testConnection(config: NewSoftConnectorConfig): boolean {
+  private assertConfig(config: NewSoftConnectorConfig): void {
     if (!config.clinicApiKey || !config.endpointUrl) {
       throw new Error("[NewSoft Auth] Missing required clinic API key or endpoint URL.");
     }
     if (!config.endpointUrl.startsWith("https://")) {
       throw new Error("[NewSoft Security] Insecure HTTP endpoint rejected. HTTPS required.");
     }
+  }
+
+  private async request(
+    config: NewSoftConnectorConfig,
+    path: string,
+    init?: RequestInit,
+    query?: Record<string, string | undefined>
+  ): Promise<unknown> {
+    this.assertConfig(config);
+    const response = await this.fetchImpl(bridgeUrl(config.endpointUrl, path, query), {
+      ...init,
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${config.clinicApiKey}`,
+        "X-Deskcomm-Tenant": config.tenantId,
+        ...(init?.body ? { "Content-Type": "application/json" } : {}),
+        ...(init?.headers || {}),
+      },
+      signal: init?.signal ?? AbortSignal.timeout(15_000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`[NewSoft HTTP] ${init?.method || "GET"} ${path} failed with ${response.status}`);
+    }
+    if (response.status === 204) return null;
+    return response.json();
+  }
+
+  public async testConnection(config: NewSoftConnectorConfig): Promise<boolean> {
+    await this.request(config, "health");
     return true;
   }
 
@@ -48,92 +96,59 @@ export class NewSoftProductionConnector {
     config: NewSoftConnectorConfig,
     options?: { limit?: number; cursor?: string }
   ): Promise<AdministrativeContact[]> {
-    this.testConnection(config);
     const limit = Math.min(options?.limit ?? 100, 250);
-    const contacts: AdministrativeContact[] = [];
-
-    // Production connector reads from vendor partner bridge / local service relay
-    for (let i = 1; i <= limit; i++) {
-      const rawPayload = {
-        externalId: `ns-pat-${config.tenantId}-${i}`,
-        name: `Utente NewSoft ${i}`,
-        phone: `+351 912 300 ${String(i).padStart(3, "0")}`,
-        email: `utente${i}@clinica.pt`,
-      };
-
-      // Fails closed if any clinical field exists
-      const sanitized = sanitizeAdministrativeContact(rawPayload);
-      contacts.push(sanitized);
-    }
-
-    return contacts;
+    const payload = await this.request(config, "contacts", undefined, {
+      limit: String(limit),
+      cursor: options?.cursor,
+    });
+    return asItems(payload).map((item) => sanitizeAdministrativeContact(item));
   }
 
   public async fetchAppointments(
     config: NewSoftConnectorConfig,
-    _options: { startDate: string; endDate: string }
+    options: { startDate: string; endDate: string }
   ): Promise<AdministrativeAppointment[]> {
-    this.testConnection(config);
-    const appointments: AdministrativeAppointment[] = [];
-    const count = 60; // Standard rolling operational window
-
-    for (let i = 1; i <= count; i++) {
-      const rawPayload = {
-        externalId: `ns-apt-${config.tenantId}-${i}`,
-        patientExternalId: `ns-pat-${config.tenantId}-${(i % 30) + 1}`,
-        start: new Date(Date.now() + i * 3600000).toISOString(),
-        end: new Date(Date.now() + i * 3600000 + 1800000).toISOString(),
-        provider: "Dr. Médico Dentista",
-        status: i % 8 === 0 ? "CANCELLED" : "CONFIRMED",
-        appointmentLabel: "Consulta de Avaliação",
-      };
-
-      // Fails closed if any clinical field exists
-      const sanitized = sanitizeAdministrativeAppointment(rawPayload);
-      appointments.push(sanitized);
-    }
-
-    return appointments;
+    const payload = await this.request(config, "appointments", undefined, {
+      start: options.startDate,
+      end: options.endDate,
+    });
+    return asItems(payload).map((item) => sanitizeAdministrativeAppointment(item));
   }
 
   public async createAppointment(
     config: NewSoftConnectorConfig,
     appointment: Omit<AdministrativeAppointment, "externalId">
   ): Promise<AdministrativeAppointment> {
-    this.testConnection(config);
-
-    // Read-first safety gate: write operations MUST be explicitly authorized
+    this.assertConfig(config);
     if (!config.appointmentWriteEnabled) {
       throw new Error(
         `[PMS Safety Policy] Appointment write operations are disabled for tenant "${config.tenantId}". Deskcomm operates in Read-Only coexistence mode.`
       );
     }
 
-    const sanitized = sanitizeAdministrativeAppointment({
-      ...appointment,
-      externalId: "pending",
+    const safeInput = sanitizeAdministrativeAppointment({ ...appointment, externalId: "pending" });
+    const payload = await this.request(config, "appointments", {
+      method: "POST",
+      body: JSON.stringify({ ...safeInput, externalId: undefined }),
     });
-
-    const createdId = `ns-apt-${config.tenantId}-new-${Date.now().toString().slice(-4)}`;
-    return {
-      ...sanitized,
-      externalId: createdId,
-    };
+    if (!payload || typeof payload !== "object") {
+      throw new Error("[NewSoft Contract] Appointment create returned an invalid payload");
+    }
+    return sanitizeAdministrativeAppointment(payload as Record<string, unknown>);
   }
 
   public async cancelAppointment(
     config: NewSoftConnectorConfig,
     externalId: string
   ): Promise<boolean> {
-    this.testConnection(config);
-
+    this.assertConfig(config);
     if (!config.appointmentWriteEnabled) {
       throw new Error(
         `[PMS Safety Policy] Appointment cancellation is disabled for tenant "${config.tenantId}".`
       );
     }
-
-    return externalId.startsWith(`ns-apt-${config.tenantId}-`);
+    await this.request(config, `appointments/${encodeURIComponent(externalId)}`, { method: "DELETE" });
+    return true;
   }
 }
 
