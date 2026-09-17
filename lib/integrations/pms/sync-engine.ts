@@ -102,6 +102,9 @@ export class PmsSyncEngine {
           contact.externalId,
         );
 
+        if (existing?.syncStatus === "disabled") {
+          continue;
+        }
         if (existing?.syncStatus === "conflict") {
           conflictsDetected++;
           continue;
@@ -162,7 +165,28 @@ export class PmsSyncEngine {
       appointmentsRead = appointments.length;
 
       for (const appointment of appointments) {
-        const externalVersion = payloadVersion(appointment);
+        const patientMapping = appointment.patientExternalId
+          ? await this.mappingRepo.getByExternalId(
+              connection.tenantId,
+              connection.provider,
+              "contact",
+              appointment.patientExternalId,
+            )
+          : null;
+
+        // LGPD/anonymization tombstone: never recreate appointment mirrors for
+        // a PMS patient whose Deskcomm contact mapping was deliberately disabled.
+        if (patientMapping?.syncStatus === "disabled") {
+          continue;
+        }
+
+        // The mirror version includes the resolved Deskcomm contact identity.
+        // This makes a mirror imported before its patient was mapped get updated
+        // later with contact_id, even when the PMS appointment payload is unchanged.
+        const externalVersion = payloadVersion({
+          appointment,
+          contactDeskcommId: patientMapping?.deskcommId ?? null,
+        });
         const existing = await this.mappingRepo.getByExternalId(
           connection.tenantId,
           connection.provider,
@@ -170,6 +194,9 @@ export class PmsSyncEngine {
           appointment.externalId,
         );
 
+        if (existing?.syncStatus === "disabled") {
+          continue;
+        }
         if (existing?.syncStatus === "conflict") {
           conflictsDetected++;
           continue;
@@ -180,14 +207,6 @@ export class PmsSyncEngine {
         }
 
         try {
-          const patientMapping = appointment.patientExternalId
-            ? await this.mappingRepo.getByExternalId(
-                connection.tenantId,
-                connection.provider,
-                "contact",
-                appointment.patientExternalId,
-              )
-            : null;
           const projection = await this.projector.projectAppointment({
             tenantId: connection.tenantId,
             provider: connection.provider,
