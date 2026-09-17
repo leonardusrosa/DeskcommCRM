@@ -1,68 +1,55 @@
 /**
- * workers/pms-sync-worker.ts
- *
- * Background worker processing bounded PMS synchronization events:
- * initial_sync, incremental_sync, reconcile.
- * Guarantees idempotency, tenant scoping, and kill-switch safety.
+ * Background PMS sync worker.
+ * Event payloads contain only opaque connection ids; credentials are loaded server-side.
  */
 
 import type { EventRow, HandlerResult } from "@/lib/event-log/dispatcher";
+import { pmsConnectionRepository } from "@/lib/integrations/pms/connection-repository";
 import { pmsSyncEngine } from "@/lib/integrations/pms/sync-engine";
-import {
-  NEWSOFT_CAPABILITIES,
-  type PmsConnection,
-  type PmsProviderName,
-} from "@/lib/integrations/pms";
 
 interface PmsSyncEventPayload {
-  tenantId: string;
-  provider: PmsProviderName;
+  connectionId: string;
   jobType: "initial_sync" | "incremental_sync" | "reconcile";
-  endpointUrl: string;
-  clinicApiKey: string;
-  syncEnabled?: boolean;
-  appointmentWriteEnabled?: boolean;
   windowDays?: number;
 }
 
 export async function processPmsSyncEvent(row: EventRow): Promise<HandlerResult> {
   const payload = row.payload as unknown as PmsSyncEventPayload;
 
-  if (!payload || !payload.tenantId || !payload.provider) {
+  if (!payload?.connectionId || !payload?.jobType) {
     return {
       consumer_key: "pms-sync-worker.v1",
       status: "error",
-      detail: "Malformed event payload: missing required tenantId or provider",
+      detail: "Malformed event payload: missing required connectionId or jobType",
     };
   }
 
-  const connection: PmsConnection = {
-    id: `conn-${payload.tenantId}-${payload.provider}`,
-    tenantId: payload.tenantId,
-    provider: payload.provider,
-    status: "connected",
-    health: "HEALTHY",
-    syncEnabled: payload.syncEnabled ?? true,
-    appointmentWriteEnabled: payload.appointmentWriteEnabled ?? false,
-    endpointUrl: payload.endpointUrl,
-    encryptedSecretRef: `enc-${payload.tenantId}`,
-    last4: payload.clinicApiKey ? payload.clinicApiKey.slice(-4) : "0000",
-    capabilities: { ...NEWSOFT_CAPABILITIES },
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-
   try {
+    const runtime = await pmsConnectionRepository.getRuntimeConnection(payload.connectionId);
+    const { connection, clinicApiKey } = runtime;
+
+    if (row.organization_id && row.organization_id !== connection.tenantId) {
+      throw new Error("[PMS Security] Event organization does not match connection organization");
+    }
+    if (connection.provider !== "newsoft_ds") {
+      throw new Error(`[PMS Worker] Unsupported runtime provider: ${connection.provider}`);
+    }
+
     const result = await pmsSyncEngine.executeSyncJob({
       connection,
       config: {
-        tenantId: payload.tenantId,
-        endpointUrl: payload.endpointUrl,
-        clinicApiKey: payload.clinicApiKey,
+        tenantId: connection.tenantId,
+        endpointUrl: connection.endpointUrl,
+        clinicApiKey,
         appointmentWriteEnabled: connection.appointmentWriteEnabled,
       },
       jobType: payload.jobType,
       windowDays: payload.windowDays,
+    });
+
+    await pmsConnectionRepository.recordSyncOutcome(connection.id, {
+      success: result.status === "SUCCESS",
+      health: pmsSyncEngine.deriveHealth(connection, result),
     });
 
     return {
@@ -77,8 +64,17 @@ export async function processPmsSyncEvent(row: EventRow): Promise<HandlerResult>
         durationMs: result.durationMs,
       }),
     };
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    try {
+      await pmsConnectionRepository.recordSyncOutcome(payload.connectionId, {
+        success: false,
+        health: "FAILED",
+        errorCode: "PMS_SYNC_FAILED",
+      });
+    } catch {
+      // Preserve original worker failure; repository errors are visible in platform logs.
+    }
     return {
       consumer_key: "pms-sync-worker.v1",
       status: "error",
