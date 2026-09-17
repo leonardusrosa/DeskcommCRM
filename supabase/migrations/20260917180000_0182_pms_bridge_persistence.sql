@@ -137,7 +137,8 @@ CREATE POLICY pms_connections_admin_only ON public.pms_connections
     public.fn_role_at_least(organization_id, 'admin')
     OR public.fn_is_platform_admin()
   );
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.pms_connections TO authenticated;
+GRANT SELECT ON public.pms_connections TO authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.pms_connections FROM authenticated, anon;
 
 -- No policy on pms_connection_secrets: service-role only (BYPASSRLS).
 REVOKE ALL ON public.pms_connection_secrets FROM authenticated, anon;
