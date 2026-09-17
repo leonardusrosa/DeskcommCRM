@@ -9,7 +9,21 @@ if (!container) throw new Error("TEST_DB_CONTAINER not set — run via pnpm test
 function sql(script: string): string {
   return execFileSync(
     "docker",
-    ["exec", "-i", container, "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-tA", "-f", "-"],
+    [
+      "exec",
+      "-i",
+      container,
+      "psql",
+      "-U",
+      "postgres",
+      "-d",
+      "postgres",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-tA",
+      "-f",
+      "-",
+    ],
     { input: script, encoding: "utf8" },
   ).trim();
 }
@@ -41,6 +55,8 @@ const VIEWER_A = "9f511111-0000-4000-8000-00000000000c";
 const ADMIN_B = "9f511111-0000-4000-8000-00000000000b";
 const CONN_A = "9f512222-0000-4000-8000-00000000000a";
 const CONN_B = "9f512222-0000-4000-8000-00000000000b";
+const MIRROR_A = "9f513333-0000-4000-8000-00000000000a";
+const MIRROR_B = "9f513333-0000-4000-8000-00000000000b";
 
 beforeAll(() => {
   const migration = readFileSync(
@@ -79,11 +95,17 @@ beforeAll(() => {
       ('${CONN_A}', '${ORG_A}', 'cipher-a', 'iv-a', 'tag-a'),
       ('${CONN_B}', '${ORG_B}', 'cipher-b', 'iv-b', 'tag-b');
 
-    insert into public.pms_external_mappings
-      (organization_id, provider, entity_type, external_id, deskcomm_id, checksum)
+    insert into public.pms_appointment_mirrors
+      (id, organization_id, provider, external_id, starts_at, ends_at, status, appointment_label, external_version)
     values
-      ('${ORG_A}', 'newsoft_ds', 'contact', 'external-a', 'deskcomm-a', 'sum-a'),
-      ('${ORG_B}', 'newsoft_ds', 'contact', 'external-b', 'deskcomm-b', 'sum-b');
+      ('${MIRROR_A}', '${ORG_A}', 'newsoft_ds', 'appointment-a', '2026-09-21T10:00:00Z', '2026-09-21T10:30:00Z', 'CONFIRMED', 'Consulta A', 'v-a'),
+      ('${MIRROR_B}', '${ORG_B}', 'newsoft_ds', 'appointment-b', '2026-09-21T11:00:00Z', '2026-09-21T11:30:00Z', 'CONFIRMED', 'Consulta B', 'v-b');
+
+    insert into public.pms_external_mappings
+      (organization_id, provider, entity_type, external_id, deskcomm_id, external_version, checksum)
+    values
+      ('${ORG_A}', 'newsoft_ds', 'appointment', 'external-a', '${MIRROR_A}', 'v-a', 'sum-a'),
+      ('${ORG_B}', 'newsoft_ds', 'appointment', 'external-b', '${MIRROR_B}', 'v-b', 'sum-b');
 
     insert into public.pms_audit_events (organization_id, provider, action, metadata) values
       ('${ORG_A}', 'newsoft_ds', 'connection_created', '{}'),
@@ -93,34 +115,112 @@ beforeAll(() => {
 
 describe("PMS bridge — RLS and credential boundary", () => {
   it("tenant admin reads own connection and zero neighbor connections", () => {
-    expect(countAs(ADMIN_A, `select count(*) from public.pms_connections where organization_id='${ORG_A}';`)).toBe(1);
-    expect(countAs(ADMIN_A, `select count(*) from public.pms_connections where organization_id='${ORG_B}';`)).toBe(0);
-    expect(countAs(ADMIN_B, `select count(*) from public.pms_connections where organization_id='${ORG_A}';`)).toBe(0);
+    expect(
+      countAs(
+        ADMIN_A,
+        `select count(*) from public.pms_connections where organization_id='${ORG_A}';`,
+      ),
+    ).toBe(1);
+    expect(
+      countAs(
+        ADMIN_A,
+        `select count(*) from public.pms_connections where organization_id='${ORG_B}';`,
+      ),
+    ).toBe(0);
+    expect(
+      countAs(
+        ADMIN_B,
+        `select count(*) from public.pms_connections where organization_id='${ORG_A}';`,
+      ),
+    ).toBe(0);
   });
 
   it("viewer cannot read connection metadata and even admin cannot query secret storage", () => {
-    expect(countAs(VIEWER_A, `select count(*) from public.pms_connections where organization_id='${ORG_A}';`)).toBe(0);
+    expect(
+      countAs(
+        VIEWER_A,
+        `select count(*) from public.pms_connections where organization_id='${ORG_A}';`,
+      ),
+    ).toBe(0);
     expect(queryFailsAs(ADMIN_A, "select count(*) from public.pms_connection_secrets;")).toBe(true);
   });
 
-  it("tenant members can read only mappings from their organization", () => {
-    expect(countAs(VIEWER_A, `select count(*) from public.pms_external_mappings where organization_id='${ORG_A}';`)).toBe(1);
-    expect(countAs(VIEWER_A, `select count(*) from public.pms_external_mappings where organization_id='${ORG_B}';`)).toBe(0);
+  it("tenant members can read only mappings and appointment mirrors from their organization", () => {
+    expect(
+      countAs(
+        VIEWER_A,
+        `select count(*) from public.pms_external_mappings where organization_id='${ORG_A}';`,
+      ),
+    ).toBe(1);
+    expect(
+      countAs(
+        VIEWER_A,
+        `select count(*) from public.pms_external_mappings where organization_id='${ORG_B}';`,
+      ),
+    ).toBe(0);
+    expect(
+      countAs(
+        VIEWER_A,
+        `select count(*) from public.pms_appointment_mirrors where organization_id='${ORG_A}';`,
+      ),
+    ).toBe(1);
+    expect(
+      countAs(
+        VIEWER_A,
+        `select count(*) from public.pms_appointment_mirrors where organization_id='${ORG_B}';`,
+      ),
+    ).toBe(0);
+  });
+
+  it("tenant users cannot mutate worker-owned mappings or appointment mirrors", () => {
+    expect(
+      queryFailsAs(
+        ADMIN_A,
+        `update public.pms_external_mappings set sync_status='disabled' where organization_id='${ORG_A}'; select 0;`,
+      ),
+    ).toBe(true);
+    expect(
+      queryFailsAs(
+        ADMIN_A,
+        `update public.pms_appointment_mirrors set status='CANCELLED' where organization_id='${ORG_A}'; select 0;`,
+      ),
+    ).toBe(true);
   });
 
   it("audit rows are admin-only and tenant isolated", () => {
-    expect(countAs(ADMIN_A, `select count(*) from public.pms_audit_events where organization_id='${ORG_A}';`)).toBe(1);
-    expect(countAs(ADMIN_A, `select count(*) from public.pms_audit_events where organization_id='${ORG_B}';`)).toBe(0);
-    expect(countAs(VIEWER_A, `select count(*) from public.pms_audit_events where organization_id='${ORG_A}';`)).toBe(0);
+    expect(
+      countAs(
+        ADMIN_A,
+        `select count(*) from public.pms_audit_events where organization_id='${ORG_A}';`,
+      ),
+    ).toBe(1);
+    expect(
+      countAs(
+        ADMIN_A,
+        `select count(*) from public.pms_audit_events where organization_id='${ORG_B}';`,
+      ),
+    ).toBe(0);
+    expect(
+      countAs(
+        VIEWER_A,
+        `select count(*) from public.pms_audit_events where organization_id='${ORG_A}';`,
+      ),
+    ).toBe(0);
   });
 
   it("all PMS persistence tables have RLS enabled", () => {
     const enabled = sql(`
       select count(*) from pg_class
        where relnamespace = 'public'::regnamespace
-         and relname in ('pms_connections','pms_connection_secrets','pms_external_mappings','pms_audit_events')
+         and relname in (
+           'pms_connections',
+           'pms_connection_secrets',
+           'pms_external_mappings',
+           'pms_appointment_mirrors',
+           'pms_audit_events'
+         )
          and relrowsecurity;
     `);
-    expect(Number(enabled)).toBe(4);
+    expect(Number(enabled)).toBe(5);
   });
 });
