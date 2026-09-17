@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { requireAuth, resolveActiveOrg } from "@/lib/auth/server";
 import { ROLE_RANK } from "@/lib/auth/types";
+import { isPlatformProviderEnabled } from "@/lib/integrations/pms/sync-engine";
 import { createClient } from "@/lib/supabase/server";
 import { PmsConnectionPanel } from "@/components/admin/pms/PmsConnectionPanel";
 import { TenantForm } from "./_form";
@@ -71,15 +72,20 @@ export default async function TenantSettingsPage() {
           }}
         />
       )}
-      <section className="border-t pt-8" aria-labelledby="pms-title">
-        <div className="mb-4">
-          <h2 id="pms-title" className="text-xl font-semibold tracking-tight">PMS Dental</h2>
-          <p className="text-sm text-muted-foreground">
-            Ligação administrativa NewSoft DS. Gesden permanece no processo formal de parceria/exportação.
-          </p>
-        </div>
-        <PmsConnectionPanel />
-      </section>
+      {isPlatformProviderEnabled("newsoft_ds") && (
+        <section className="border-t pt-8" aria-labelledby="pms-title">
+          <div className="mb-4">
+            <h2 id="pms-title" className="text-xl font-semibold tracking-tight">
+              PMS Dental
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Ligação administrativa NewSoft DS. Gesden permanece no processo formal de
+              parceria/exportação.
+            </p>
+          </div>
+          <PmsConnectionPanel />
+        </section>
+      )}
     </div>
   );
 }
