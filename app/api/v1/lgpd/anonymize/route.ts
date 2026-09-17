@@ -18,6 +18,7 @@ import { audit } from "@/lib/audit";
 import { ApiError } from "@/lib/api/types";
 import { ok, fail } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
+import { suppressPmsDataForAnonymizedContact } from "@/lib/integrations/pms/redaction";
 import { lgpdAnonymizeSchema, validateRequest } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/server";
 
@@ -83,6 +84,21 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
   }
 
+  let pmsRedaction;
+  try {
+    pmsRedaction = await suppressPmsDataForAnonymizedContact(
+      existing.organization_id,
+      existing.id,
+    );
+  } catch (error: unknown) {
+    return fail(
+      "internal_error",
+      error instanceof Error ? error.message : "Falha ao remover vínculos PMS do contato.",
+      500,
+      { requestId },
+    );
+  }
+
   const nowIso = new Date().toISOString();
   const shortId = existing.id.slice(0, 8);
 
@@ -101,6 +117,9 @@ export async function POST(req: NextRequest): Promise<Response> {
       cpf_encrypted: null,
       cpf_hash: null,
       birthdate: null,
+      consent: {},
+      tags: [],
+      source_metadata: {},
       is_anonymized: true,
       anonymized_at: nowIso,
       updated_at: nowIso,
@@ -166,8 +185,16 @@ export async function POST(req: NextRequest): Promise<Response> {
     metadata: {
       contact_id: existing.id,
       justification: input.justification,
-      redacted_tables: ["contacts", "crm_leads", "crm_lead_activities"],
+      redacted_tables: [
+        "contacts",
+        "crm_leads",
+        "crm_lead_activities",
+        ...(pmsRedaction.available
+          ? ["pms_external_mappings", "pms_appointment_mirrors"]
+          : []),
+      ],
       redacted_lead_ids: redactedLeadIds,
+      pms_redaction: pmsRedaction,
       storage_media_deletion: "deferred_epic_08",
     },
   });
