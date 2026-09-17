@@ -32,6 +32,7 @@ export interface DemoContactSpec {
   stageSlug: string;
   interest: string;
   tags: string[];
+  status?: "new" | "lost" | "won";
   conversationMessages: Array<{
     direction: "inbound" | "outbound";
     body: string;
@@ -47,7 +48,7 @@ export interface DemoAppointmentSpec {
   localHour: number;
   localMinute: number;
   durationMinutes: number;
-  status: "confirmed" | "pending" | "completed";
+  status: "confirmed" | "pending" | "scheduled" | "completed";
   notes: string;
 }
 
