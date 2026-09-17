@@ -33,6 +33,17 @@ function payloadVersion(payload: unknown): string {
   return crypto.createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
 
+function externalRefHash(
+  provider: PmsProviderName,
+  entityType: "contact" | "appointment",
+  externalId: string,
+): string {
+  return crypto
+    .createHash("sha256")
+    .update(`${provider}::${entityType}::${externalId}`)
+    .digest("hex");
+}
+
 export class PmsSyncEngine {
   private auditLogs: PmsAuditEvent[] = [];
   private readonly durableRuntime: boolean;
@@ -138,7 +149,7 @@ export class PmsSyncEngine {
           } else if (res.conflictDetected) {
             conflictsDetected++;
             await this.recordAudit(connection.tenantId, connection.provider, "conflict_detected", {
-              externalId: contact.externalId,
+              externalRefHash: externalRefHash(connection.provider, "contact", contact.externalId),
               entityType: "contact",
               reason: projection.applied ? "concurrent_change" : "deskcomm_changed",
             });
@@ -230,7 +241,7 @@ export class PmsSyncEngine {
           } else if (res.conflictDetected) {
             conflictsDetected++;
             await this.recordAudit(connection.tenantId, connection.provider, "conflict_detected", {
-              externalId: appointment.externalId,
+              externalRefHash: externalRefHash(connection.provider, "appointment", appointment.externalId),
               entityType: "appointment",
             });
           } else {
