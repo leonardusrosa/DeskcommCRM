@@ -13,6 +13,16 @@ import {
   ShieldCheck,
   Palette,
   ArrowRight,
+  MonitorPlay,
+  Kanban,
+  UsersThree,
+  Sparkle,
+  Globe,
+  ChartLineUp,
+  DownloadSimple,
+  ClockCountdown,
+  PuzzlePiece,
+  Phone,
 } from "@/lib/ui/icons";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
@@ -26,6 +36,21 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/admin/dashboard", label: "Dashboard", icon: Gauge },
+  { href: "/admin/revenue", label: "Executive Revenue", icon: ChartBar },
+  { href: "/admin/intelligence", label: "Intelligence", icon: Sparkle },
+  { href: "/admin/demo-center", label: "Demo Center", icon: Sparkle },
+  { href: "/admin/demo-center/live", label: "Live Center", icon: Sparkle },
+  { href: "/admin/demo-center/health", label: "Observability", icon: ShieldCheck },
+  { href: "/admin/demo-center/integrations", label: "Integrations", icon: PuzzlePiece },
+  { href: "/admin/sales", label: "Sales Workspace", icon: Kanban },
+  { href: "/sales/mobile", label: "Sales Mobile", icon: Phone },
+  { href: "/admin/sales/performance", label: "Performance", icon: ChartLineUp },
+  { href: "/admin/sales/sla", label: "SLA Analytics", icon: ClockCountdown },
+  { href: "/admin/demos", label: "Demos", icon: MonitorPlay },
+  { href: "/admin/demos/analytics", label: "Demo Analytics", icon: ChartBar },
+  { href: "/admin/demos/cohorts", label: "Demo Cohorts", icon: UsersThree },
+  { href: "/admin/demos/marketing", label: "Marketing", icon: Globe },
+  { href: "/admin/demos/export", label: "Export Demos", icon: DownloadSimple },
   { href: "/admin/inbox", label: "Inbox", icon: ChatsCircle },
   { href: "/admin/tenants", label: "Tenants", icon: Buildings },
   { href: "/admin/audit", label: "Audit", icon: ClipboardText },
