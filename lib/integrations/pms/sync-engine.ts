@@ -4,6 +4,11 @@ import crypto from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { defaultMappingRepository, type PmsMappingStore } from "./mapping";
 import { newSoftProductionConnector, type NewSoftConnectorConfig } from "./newsoft-connector";
+import {
+  defaultPmsEntityProjector,
+  PmsProjectionConflictError,
+  type PmsEntityProjector,
+} from "./entity-projector";
 import { sanitizeCredentialsForAudit } from "./credentials";
 import type {
   PmsAuditEvent,
@@ -24,13 +29,18 @@ export function setPlatformProviderEnabled(provider: PmsProviderName, enabled: b
   else disabledProviders.add(provider);
 }
 
+function payloadVersion(payload: unknown): string {
+  return crypto.createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
 export class PmsSyncEngine {
   private auditLogs: PmsAuditEvent[] = [];
   private readonly durableRuntime: boolean;
 
   constructor(
     private mappingRepo: PmsMappingStore = defaultMappingRepository,
-    private connector = newSoftProductionConnector
+    private connector = newSoftProductionConnector,
+    private projector: PmsEntityProjector = defaultPmsEntityProjector,
   ) {
     this.durableRuntime = mappingRepo === defaultMappingRepository;
   }
@@ -49,20 +59,24 @@ export class PmsSyncEngine {
       await this.recordAudit(connection.tenantId, connection.provider, "sync_failed", {
         reason: "Provider disabled at platform level",
       });
-      throw new Error(`[PMS Sync Aborted] Provider "${connection.provider}" is disabled by platform kill switch.`);
+      throw new Error(
+        `[PMS Sync Aborted] Provider "${connection.provider}" is disabled by platform kill switch.`,
+      );
     }
     if (!connection.syncEnabled) {
       await this.recordAudit(connection.tenantId, connection.provider, "sync_failed", {
         reason: "Sync disabled for tenant connection",
       });
-      throw new Error(`[PMS Sync Aborted] Synchronization is disabled for tenant "${connection.tenantId}".`);
+      throw new Error(
+        `[PMS Sync Aborted] Synchronization is disabled for tenant "${connection.tenantId}".`,
+      );
     }
 
     await this.recordAudit(
       connection.tenantId,
       connection.provider,
       jobType === "initial_sync" ? "initial_sync_started" : "connection_enabled",
-      { syncRunId, jobType }
+      { syncRunId, jobType },
     );
 
     let contactsRead = 0;
@@ -80,21 +94,62 @@ export class PmsSyncEngine {
       contactsRead = contacts.length;
 
       for (const contact of contacts) {
-        const res = await this.mappingRepo.upsert({
-          tenantId: connection.tenantId,
-          provider: connection.provider,
-          entityType: "contact",
-          externalId: contact.externalId,
-          deskcommId: `dk-c-${contact.externalId}`,
-          externalVersion: "v1.0",
-          lastExternalUpdateAt: new Date().toISOString(),
-        });
-        if (res.isDuplicate) duplicatesDetected++;
-        else contactsMapped++;
-        if (res.conflictDetected) {
+        const externalVersion = payloadVersion(contact);
+        const existing = await this.mappingRepo.getByExternalId(
+          connection.tenantId,
+          connection.provider,
+          "contact",
+          contact.externalId,
+        );
+
+        if (existing?.syncStatus === "conflict") {
           conflictsDetected++;
+          continue;
+        }
+        if (existing?.syncStatus === "synced" && existing.externalVersion === externalVersion) {
+          duplicatesDetected++;
+          continue;
+        }
+
+        try {
+          const projection = await this.projector.projectContact({
+            tenantId: connection.tenantId,
+            provider: connection.provider,
+            contact,
+            existingMapping: existing,
+          });
+          const lastExternalUpdateAt = new Date().toISOString();
+          const res = await this.mappingRepo.upsert({
+            tenantId: connection.tenantId,
+            provider: connection.provider,
+            entityType: "contact",
+            externalId: contact.externalId,
+            deskcommId: projection.deskcommId,
+            externalVersion,
+            lastExternalUpdateAt,
+            deskcommUpdatedAt: projection.deskcommUpdatedAt,
+          });
+
+          if (res.isDuplicate) {
+            duplicatesDetected++;
+          } else if (res.conflictDetected) {
+            conflictsDetected++;
+            await this.recordAudit(connection.tenantId, connection.provider, "conflict_detected", {
+              externalId: contact.externalId,
+              entityType: "contact",
+              reason: projection.applied ? "concurrent_change" : "deskcomm_changed",
+            });
+          } else {
+            contactsMapped++;
+          }
+        } catch (error: unknown) {
+          if (!(error instanceof PmsProjectionConflictError)) throw error;
+          conflictsDetected++;
+          errorsCount++;
           await this.recordAudit(connection.tenantId, connection.provider, "conflict_detected", {
             externalId: contact.externalId,
+            entityType: "contact",
+            reason: error.message,
           });
         }
       }
@@ -107,21 +162,69 @@ export class PmsSyncEngine {
       appointmentsRead = appointments.length;
 
       for (const appointment of appointments) {
-        const res = await this.mappingRepo.upsert({
-          tenantId: connection.tenantId,
-          provider: connection.provider,
-          entityType: "appointment",
-          externalId: appointment.externalId,
-          deskcommId: `dk-a-${appointment.externalId}`,
-          externalVersion: "v1.0",
-          lastExternalUpdateAt: new Date().toISOString(),
-        });
-        if (res.isDuplicate) duplicatesDetected++;
-        else appointmentsMapped++;
-        if (res.conflictDetected) {
+        const externalVersion = payloadVersion(appointment);
+        const existing = await this.mappingRepo.getByExternalId(
+          connection.tenantId,
+          connection.provider,
+          "appointment",
+          appointment.externalId,
+        );
+
+        if (existing?.syncStatus === "conflict") {
           conflictsDetected++;
+          continue;
+        }
+        if (existing?.syncStatus === "synced" && existing.externalVersion === externalVersion) {
+          duplicatesDetected++;
+          continue;
+        }
+
+        try {
+          const patientMapping = appointment.patientExternalId
+            ? await this.mappingRepo.getByExternalId(
+                connection.tenantId,
+                connection.provider,
+                "contact",
+                appointment.patientExternalId,
+              )
+            : null;
+          const projection = await this.projector.projectAppointment({
+            tenantId: connection.tenantId,
+            provider: connection.provider,
+            appointment,
+            contactDeskcommId: patientMapping?.deskcommId,
+            externalVersion,
+            existingMapping: existing,
+          });
+          const res = await this.mappingRepo.upsert({
+            tenantId: connection.tenantId,
+            provider: connection.provider,
+            entityType: "appointment",
+            externalId: appointment.externalId,
+            deskcommId: projection.deskcommId,
+            externalVersion,
+            lastExternalUpdateAt: new Date().toISOString(),
+          });
+
+          if (res.isDuplicate) {
+            duplicatesDetected++;
+          } else if (res.conflictDetected) {
+            conflictsDetected++;
+            await this.recordAudit(connection.tenantId, connection.provider, "conflict_detected", {
+              externalId: appointment.externalId,
+              entityType: "appointment",
+            });
+          } else {
+            appointmentsMapped++;
+          }
+        } catch (error: unknown) {
+          if (!(error instanceof PmsProjectionConflictError)) throw error;
+          conflictsDetected++;
+          errorsCount++;
           await this.recordAudit(connection.tenantId, connection.provider, "conflict_detected", {
             externalId: appointment.externalId,
+            entityType: "appointment",
+            reason: error.message,
           });
         }
       }
@@ -130,13 +233,15 @@ export class PmsSyncEngine {
         syncRunId,
         contactsMapped,
         appointmentsMapped,
+        conflictsDetected,
+        errorsCount,
       });
 
       return {
         tenantId: connection.tenantId,
         provider: connection.provider,
         syncRunId,
-        status: errorsCount > 0 ? "PARTIAL" : "SUCCESS",
+        status: errorsCount > 0 || conflictsDetected > 0 ? "PARTIAL" : "SUCCESS",
         contactsRead,
         contactsMapped,
         appointmentsRead,
@@ -148,7 +253,6 @@ export class PmsSyncEngine {
         syncedAt: new Date().toISOString(),
       };
     } catch (error: unknown) {
-      errorsCount++;
       const message = error instanceof Error ? error.message : String(error);
       await this.recordAudit(connection.tenantId, connection.provider, "sync_failed", {
         syncRunId,
@@ -162,7 +266,13 @@ export class PmsSyncEngine {
     if (!connection.syncEnabled) return "DISABLED";
     if (!lastResult) return "HEALTHY";
     if (lastResult.status === "FAILED" || lastResult.errorsCount > 5) return "FAILED";
-    if (lastResult.conflictsDetected > 0 || lastResult.errorsCount > 0) return "DEGRADED";
+    if (
+      lastResult.status === "PARTIAL" ||
+      lastResult.conflictsDetected > 0 ||
+      lastResult.errorsCount > 0
+    ) {
+      return "DEGRADED";
+    }
     return "HEALTHY";
   }
 
@@ -178,7 +288,7 @@ export class PmsSyncEngine {
     tenantId: string,
     provider: PmsProviderName,
     action: PmsAuditEvent["action"],
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ): Promise<void> {
     const safeMetadata = metadata ? sanitizeCredentialsForAudit(metadata) : undefined;
     const event: PmsAuditEvent = {
