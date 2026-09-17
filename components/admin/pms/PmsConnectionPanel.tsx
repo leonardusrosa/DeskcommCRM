@@ -4,10 +4,6 @@ import React, { useState } from "react";
 import { usePmsConnection } from "@/hooks/usePmsConnection";
 import type { PmsHealthState } from "@/lib/integrations/pms/types";
 
-interface PmsConnectionPanelProps {
-  tenantId: string;
-}
-
 const HEALTH_BADGES: Record<PmsHealthState, { label: string; className: string }> = {
   HEALTHY: { label: "Saudável", className: "bg-emerald-100 text-emerald-800 border-emerald-300" },
   DEGRADED: { label: "Degradado", className: "bg-amber-100 text-amber-800 border-amber-300" },
@@ -15,7 +11,7 @@ const HEALTH_BADGES: Record<PmsHealthState, { label: string; className: string }
   DISABLED: { label: "Desativado", className: "bg-slate-100 text-slate-800 border-slate-300" },
 };
 
-export const PmsConnectionPanel: React.FC<PmsConnectionPanelProps> = ({ tenantId }) => {
+export const PmsConnectionPanel: React.FC = () => {
   const {
     connection,
     isLoading,
@@ -28,7 +24,7 @@ export const PmsConnectionPanel: React.FC<PmsConnectionPanelProps> = ({ tenantId
     testConnection,
     triggerSync,
     toggleSyncEnabled,
-  } = usePmsConnection(tenantId);
+  } = usePmsConnection();
   const [endpointUrl, setEndpointUrl] = useState("");
   const [clinicApiKey, setClinicApiKey] = useState("");
 
@@ -89,18 +85,13 @@ export const PmsConnectionPanel: React.FC<PmsConnectionPanelProps> = ({ tenantId
             </button>
           </div>
         </form>
-        {testResult && (
-          <p className={`text-xs font-medium ${testResult.success ? "text-emerald-700" : "text-rose-700"}`}>
-            {testResult.message}
-          </p>
-        )}
+        {testResult && <Feedback success={testResult.success} message={testResult.message} />}
         <SafetyNotice />
       </div>
     );
   }
 
   const healthBadge = HEALTH_BADGES[connection.health];
-
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -154,11 +145,7 @@ export const PmsConnectionPanel: React.FC<PmsConnectionPanelProps> = ({ tenantId
           >
             {isSyncing ? "A enfileirar..." : "Sincronizar Agora"}
           </button>
-          {testResult && (
-            <span className={`text-xs font-medium ${testResult.success ? "text-emerald-700" : "text-rose-700"}`}>
-              {testResult.message}
-            </span>
-          )}
+          {testResult && <Feedback success={testResult.success} message={testResult.message} />}
         </div>
 
         {lastSyncResult && (
@@ -173,6 +160,10 @@ export const PmsConnectionPanel: React.FC<PmsConnectionPanelProps> = ({ tenantId
     </div>
   );
 };
+
+function Feedback({ success, message }: { success: boolean; message: string }) {
+  return <span className={`text-xs font-medium ${success ? "text-emerald-700" : "text-rose-700"}`}>{message}</span>;
+}
 
 function Detail({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
