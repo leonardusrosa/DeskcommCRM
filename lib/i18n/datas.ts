@@ -1,4 +1,4 @@
-import { es, ptBR } from "date-fns/locale";
+import { es, pt, ptBR } from "date-fns/locale";
 import type { Locale } from "date-fns";
 
 import { IDIOMA_PADRAO, type Idioma } from "./idiomas";
@@ -33,6 +33,7 @@ import { IDIOMA_PADRAO, type Idioma } from "./idiomas";
  */
 const LOCALE_DE_DATA: Record<Idioma, Locale> = {
   "pt-BR": ptBR,
+  "pt-PT": pt,
   es,
 };
 
@@ -55,6 +56,7 @@ export function localeDeData(idioma: Idioma): Locale {
  */
 const TAG_BCP47: Record<Idioma, string> = {
   "pt-BR": "pt-BR",
+  "pt-PT": "pt-PT",
   es: "es",
 };
 
