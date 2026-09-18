@@ -41,7 +41,7 @@ export const DENTAL_DEMO_CATALOG: DentalDemoCatalogCard[] = [
     title: "Clínica Dental — España",
     tagline: "Atención, oportunidades comerciales y citas en un único flujo",
     description:
-      "Entorno sintético para enseñar cómo recepción y especialistas comparten conversaciones, oportunidades y agenda sin convertir Deskcomm en historia clínica.",
+      "Entorno sintético para enseñar cómo recepción y especialistas comparten conversaciones, oportunidades y agenda sin sustituir el software clínico existente.",
     highlights: ["Madrid · EUR · +34", "Equipo multi-especialista", "Datos 100% sintéticos"],
     included: ["Inbox WhatsApp de demostración", "Pipeline dental", "Agenda nativa", "Seguimiento comercial"],
   },
