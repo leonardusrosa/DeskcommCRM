@@ -12,6 +12,10 @@ export const PUBLIC_PATHS: RegExp[] = [
   /^\/404$/,
   /^\/500$/,
   /^\/503$/,
+  // Demo showcase/provisioning is intentionally anonymous. The provisioning route
+  // enforces its own environment and production-project safety gates.
+  /^\/demo(\/.*)?$/,
+  /^\/api\/demo(\/.*)?$/,
   /^\/api\/v1\/health$/,
   /^\/api\/v1\/webhooks\//,
   /^\/api\/v1\/cron\//,
