@@ -45,7 +45,7 @@ export default async function DemoPage({
           </p>
           <div className="grid gap-3 text-sm sm:grid-cols-2">
             <div className="rounded-md border p-4"><strong>Inbox</strong><br />{pt ? "Conversas sintéticas de receção" : "Conversaciones sintéticas de recepción"}</div>
-            <div className="rounded-md border p-4"><strong>CRM</strong><br />{pt ? "Pipeline de tratamentos e acompanhamento" : "Pipeline de tratamientos y seguimiento"}</div>
+            <div className="rounded-md border p-4"><strong>CRM</strong><br />{pt ? "Etapas de tratamento e acompanhamento" : "Etapas de tratamiento y seguimiento"}</div>
             <div className="rounded-md border p-4"><strong>Agenda</strong><br />{pt ? "Serviços, especialistas e marcações" : "Servicios, especialistas y citas"}</div>
             <div className="rounded-md border p-4"><strong>{pt ? "Mercados" : "Mercado"}</strong><br />{pt ? "CO, MX, ES e PT localizados" : "CO, MX, ES y PT localizados"}</div>
           </div>
