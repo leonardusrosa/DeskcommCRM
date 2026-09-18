@@ -53,7 +53,23 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to provision demo.";
-    const status = /disabled|forbidden/i.test(message) ? 503 : 500;
-    return NextResponse.json({ success: false, error: message }, { status });
+    console.error("[demo] provisioning failed", { message });
+
+    if (/disabled|forbidden/i.test(message)) {
+      return NextResponse.json(
+        { success: false, error: "Demo provisioning is unavailable on this installation." },
+        { status: 503 },
+      );
+    }
+    if (/capacity reached/i.test(message)) {
+      return NextResponse.json(
+        { success: false, error: "Demo capacity reached. Try again later." },
+        { status: 503 },
+      );
+    }
+    return NextResponse.json(
+      { success: false, error: "Unable to provision demo." },
+      { status: 500 },
+    );
   }
 }
