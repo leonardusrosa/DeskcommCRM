@@ -105,9 +105,9 @@ async function handle(req: NextRequest): Promise<Response> {
   const desfechos: Record<string, number> = {};
 
   for (const s of sessoes) {
-    // Synthetic demo sessions deliberately do not exist in the transport.
-    // Health-checking them would make the demo call WAHA, then mark its fake
-    // session STOPPED and raise a misleading disconnection alert.
+    // Synthetic demo sessions deliberately do not exist in any external transport.
+    // Health-checking them would call the adapter, mark the fake session STOPPED,
+    // and raise a misleading disconnection alert.
     if (isSyntheticDemoChannelMetadata(s.metadata)) continue;
 
     // Pergunta ao CANAL, não ao provider: quem tem sessão para consultar
