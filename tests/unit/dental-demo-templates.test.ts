@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DENTAL_DEMO_CATALOG } from "@/lib/demo/catalog";
 import { assertDemoProvisioningAllowed } from "@/lib/demo/safety";
+import { isExpiredDemoSettings } from "@/lib/demo/expiry";
+import { createDemoUsers } from "@/lib/demo/provision-core";
 import { DENTAL_DEMO_TEMPLATES, getDentalDemoTemplate } from "@/lib/demo/templates";
 import { normalizarIdioma } from "@/lib/i18n/idiomas";
 import { traduzir } from "@/lib/i18n/dicionario";
@@ -97,13 +99,77 @@ describe("dental demo templates — lead readiness", () => {
     expect(normalizarIdioma("es-CO")).toBe("es");
     expect(normalizarIdioma("es-MX")).toBe("es");
     expect(normalizarIdioma("es-ES")).toBe("es");
-    expect(normalizarIdioma("pt")).toBe("pt-PT");
+    expect(normalizarIdioma("pt")).toBe("pt-BR");
     expect(normalizarIdioma("pt-PT")).toBe("pt-PT");
     expect(traduzir("Contatos", "pt-PT")).toBe("Contactos");
     expect(traduzir("Equipe", "pt-PT")).toBe("Equipa");
     expect(traduzir("Configurações", "pt-PT")).toBe("Definições");
     expect(tagDeIdioma("pt-PT")).toBe("pt-PT");
     expect(localeDeData("pt-PT").code).toBe("pt");
+  });
+  it("expires synthetic memberships at the advertised instant", () => {
+    const now = Date.parse("2026-09-18T17:00:00.000Z");
+    expect(isExpiredDemoSettings({ demo: true, demo_expires_at: "2026-09-18T16:59:59.000Z" }, now)).toBe(true);
+    expect(isExpiredDemoSettings({ demo: true, demo_expires_at: "2026-09-18T17:00:01.000Z" }, now)).toBe(false);
+    expect(isExpiredDemoSettings({ demo: false, demo_expires_at: "2020-01-01T00:00:00.000Z" }, now)).toBe(false);
+  });
+
+  it("keeps the capacity gate transactional in Postgres", () => {
+    const migration = readFileSync(
+      "supabase/migrations/20260918140000_0181_demo_capacity_atomica.sql",
+      "utf8",
+    );
+    expect(migration).toContain("pg_advisory_xact_lock");
+    expect(migration).toContain("v_active >= 25");
+    expect(migration).toContain("grant execute");
+    expect(migration).toContain("to service_role");
+  });
+
+  it("channel health skips synthetic demo sessions before transport", () => {
+    const route = readFileSync("app/api/v1/cron/channel-health/route.ts", "utf8");
+    expect(route).toContain("metadata");
+    expect(route).toContain("isSyntheticDemoChannelMetadata(s.metadata)");
+  });
+
+});
+
+describe("dental demo partial-failure cleanup", () => {
+  it("deletes auth users created before a membership failure", async () => {
+    const deleted: string[] = [];
+    let membershipInsert = 0;
+    let created = 0;
+    const admin = {
+      auth: {
+        admin: {
+          createUser: vi.fn(async () => {
+            created += 1;
+            return { data: { user: { id: `demo-user-${created}` } }, error: null };
+          }),
+          deleteUser: vi.fn(async (id: string) => {
+            deleted.push(id);
+            return { data: null, error: null };
+          }),
+        },
+      },
+      from: vi.fn((table: string) => {
+        if (table !== "user_organizations") throw new Error(`unexpected table ${table}`);
+        return {
+          insert: vi.fn(async () => {
+            membershipInsert += 1;
+            return membershipInsert === 2
+              ? { error: { message: "membership failed" } }
+              : { error: null };
+          }),
+        };
+      }),
+    };
+
+    const template = getDentalDemoTemplate("CO")!;
+    await expect(
+      createDemoUsers(admin as never, "org-demo", template, "token", "password"),
+    ).rejects.toThrow(/membership failed/i);
+
+    expect(deleted).toEqual(["demo-user-1", "demo-user-2"]);
   });
 });
 
