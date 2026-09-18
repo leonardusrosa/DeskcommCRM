@@ -16,7 +16,7 @@ export default function DemoCatalogPage() {
   return (
     <main className="mx-auto min-h-screen max-w-6xl space-y-10 px-5 py-12 md:px-8">
       <header className="max-w-3xl space-y-4">
-        <Link href="/demo" className="text-sm text-accent hover:underline">← Demo Deskcomm</Link>
+        <Link href="/demo" className="text-sm text-accent hover:underline">← Demo {brandName}</Link>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">Dental vertical</p>
         <h1 className="text-4xl font-bold tracking-tight">El mismo {brandName}, preparado para cada mercado</h1>
         <p className="text-base leading-relaxed text-muted-foreground">
