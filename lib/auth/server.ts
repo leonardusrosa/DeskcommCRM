@@ -12,6 +12,7 @@ import { logger } from "@/lib/logger";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { empresaExigeMfa, exigeCadastroDeMfa } from "@/lib/auth/politica-mfa";
+import { isExpiredDemoSettings } from "@/lib/demo/expiry";
 import type { AuthUser, Role, UserOrgMembership, ActiveOrg } from "./types";
 
 const ACTIVE_ORG_COOKIE = "active_org";
@@ -19,7 +20,10 @@ const ACTIVE_ORG_COOKIE = "active_org";
 interface RawMembershipRow {
   organization_id: string;
   role: string;
-  organizations: { display_name: string } | { display_name: string }[] | null;
+  organizations:
+    | { display_name: string; settings: unknown }
+    | { display_name: string; settings: unknown }[]
+    | null;
 }
 
 /**
@@ -118,7 +122,7 @@ export async function loadAuthUser(): Promise<AuthUser | null> {
   // Org memberships (only active = not revoked, accepted)
   const { data: rawMemberships, error: membErro } = await supabase
     .from("user_organizations")
-    .select("organization_id, role, organizations(display_name)")
+    .select("organization_id, role, organizations(display_name, settings)")
     .eq("user_id", user.id)
     .is("revoked_at", null);
 
@@ -155,15 +159,25 @@ export async function loadAuthUser(): Promise<AuthUser | null> {
   }
 
   const rows = (rawMemberships ?? []) as RawMembershipRow[];
-  const memberships: UserOrgMembership[] = rows.map((row) => {
-    const orgs = row.organizations;
-    const name = Array.isArray(orgs) ? (orgs[0]?.display_name ?? "—") : (orgs?.display_name ?? "—");
-    return {
-      organization_id: row.organization_id,
-      organization_name: name,
-      role: row.role as Role,
-    };
-  });
+  const memberships: UserOrgMembership[] = rows
+    .filter((row) => {
+      const orgs = row.organizations;
+      const org = Array.isArray(orgs) ? orgs[0] : orgs;
+      // Demo expiry is an authorization boundary, not just retention metadata.
+      // Once the advertised 48h instant is reached the membership disappears
+      // from the effective session immediately, even if the cleanup cron has
+      // not deleted the tenant/auth user yet.
+      return !isExpiredDemoSettings(org?.settings);
+    })
+    .map((row) => {
+      const orgs = row.organizations;
+      const name = Array.isArray(orgs) ? (orgs[0]?.display_name ?? "—") : (orgs?.display_name ?? "—");
+      return {
+        organization_id: row.organization_id,
+        organization_name: name,
+        role: row.role as Role,
+      };
+    });
 
   const fullName = (user.user_metadata?.full_name as string | undefined) ?? null;
   const avatarUrl = (user.user_metadata?.avatar_url as string | undefined) ?? null;
