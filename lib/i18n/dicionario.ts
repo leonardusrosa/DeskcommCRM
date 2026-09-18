@@ -32,6 +32,7 @@
  * do que estava.
  */
 import type { Idioma } from "./idiomas";
+import { traduzirPtPt } from "./pt-pt";
 
 /** `pt-BR` não aparece: é a chave. Só o que DIFERE precisa de linha. */
 type Traducoes = Record<string, Partial<Record<Exclude<Idioma, "pt-BR">, string>>>;
@@ -6294,5 +6295,6 @@ export const DICIONARIO: Traducoes = {
  */
 export function traduzir(texto: string, idioma: Idioma): string {
   if (idioma === "pt-BR") return texto;
+  if (idioma === "pt-PT") return traduzirPtPt(texto);
   return DICIONARIO[texto]?.[idioma] ?? texto;
 }

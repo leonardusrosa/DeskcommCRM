@@ -15,26 +15,26 @@ import {
 } from "@/components/ui/select";
 import { updateProfile } from "@/app/actions/settings/updateProfile";
 import { profileSchema, type Locale } from "@/lib/schemas/settings";
-
-const TIMEZONES = [
-  "America/Sao_Paulo",
-  "America/Manaus",
-  "America/Belem",
-  "America/Recife",
-  "America/Fortaleza",
-  "UTC",
-];
+import { FUSOS_OFERECIDOS } from "@/lib/tempo/fusos";
 
 interface Props {
   email: string;
   initialFullName: string | null;
   initialAvatarUrl: string | null;
+  initialLocale: Locale;
+  initialTimezone: string;
 }
 
-export function ProfileForm({ email, initialFullName, initialAvatarUrl }: Props) {
+export function ProfileForm({
+  email,
+  initialFullName,
+  initialAvatarUrl,
+  initialLocale,
+  initialTimezone,
+}: Props) {
   const [fullName, setFullName] = useState(initialFullName ?? "");
-  const [locale, setLocale] = useState<Locale>("pt-BR");
-  const [timezone, setTimezone] = useState("America/Sao_Paulo");
+  const [locale, setLocale] = useState<Locale>(initialLocale);
+  const [timezone, setTimezone] = useState(initialTimezone);
   const [avatarUrl, setAvatarUrl] = useState(initialAvatarUrl ?? "");
   const [isPending, startTransition] = useTransition();
 
@@ -85,6 +85,7 @@ export function ProfileForm({ email, initialFullName, initialAvatarUrl }: Props)
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="pt-BR">Português (BR)</SelectItem>
+                <SelectItem value="pt-PT">Português (PT)</SelectItem>
                 {/* Espanhol entrou quando passou a MUDAR alguma coisa. Enquanto
                     o campo era guardado e ninguém o lia, oferecer um idioma a
                     mais era prometer o que a tela não cumpre — e o operador
@@ -101,9 +102,9 @@ export function ProfileForm({ email, initialFullName, initialAvatarUrl }: Props)
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TIMEZONES.map((tz) => (
-                  <SelectItem key={tz} value={tz}>
-                    {tz}
+                {FUSOS_OFERECIDOS.map((tz) => (
+                  <SelectItem key={tz.codigo} value={tz.codigo}>
+                    {tz.rotulo}
                   </SelectItem>
                 ))}
               </SelectContent>

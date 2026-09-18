@@ -38,6 +38,7 @@ import { audit } from "@/lib/audit";
 import { ok, fail } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
 import { ARCHIVED_AT, queryTolerantToMissingArchived } from "@/lib/channels/archived";
+import { isSyntheticDemoChannelMetadata } from "@/lib/demo/runtime";
 import { createClient } from "@/lib/supabase/server";
 import { getWahaClient, wahaFriendlyError } from "@/lib/waha/client";
 
@@ -81,15 +82,19 @@ export async function POST(
   // arquivado, e exigir a coluna aqui derrubaria a reconexão inteira — que é o
   // socorro de quem está com o número fora do ar.
   const { data: sessionRaw } = await queryTolerantToMissingArchived(
-    () => buscar(`id, waha_session_name, ${ARCHIVED_AT}`),
-    () => buscar("id, waha_session_name"),
+    () => buscar(`id, waha_session_name, metadata, ${ARCHIVED_AT}`),
+    () => buscar("id, waha_session_name, metadata"),
   );
   const session = sessionRaw as {
     id: string;
     waha_session_name: string | null;
     archived_at?: string | null;
+    metadata?: unknown;
   } | null;
   if (!session) return fail("not_found", "Canal não encontrado.", 404, { requestId });
+  if (isSyntheticDemoChannelMetadata(session.metadata)) {
+    return fail("demo_synthetic_channel", "Este canal é sintético e não possui transporte externo.", 409, { requestId });
+  }
   if (session.archived_at) {
     return fail(
       "channel_archived",

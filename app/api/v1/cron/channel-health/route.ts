@@ -52,6 +52,7 @@ import {
   type ChannelSessionRef,
 } from "@/lib/channels";
 import { sincronizarSaudeDaConexao } from "@/lib/channels/health";
+import { isSyntheticDemoChannelMetadata } from "@/lib/demo/runtime";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -68,6 +69,7 @@ type LinhaDeSessao = ChannelSessionRef & {
   display_name: string | null;
   phone_number: string | null;
   archived_at: string | null;
+  metadata: unknown;
 };
 
 async function handle(req: NextRequest): Promise<Response> {
@@ -88,7 +90,7 @@ async function handle(req: NextRequest): Promise<Response> {
   const { data, error } = await admin
     .from("channel_sessions")
     .select(
-      `id, organization_id, status, display_name, phone_number, archived_at, ${CHANNEL_SESSION_REF_COLUMNS}`,
+      `id, organization_id, status, display_name, phone_number, archived_at, metadata, ${CHANNEL_SESSION_REF_COLUMNS}`,
     )
     .is("archived_at", null)
     .limit(LIMITE);
@@ -103,6 +105,11 @@ async function handle(req: NextRequest): Promise<Response> {
   const desfechos: Record<string, number> = {};
 
   for (const s of sessoes) {
+    // Synthetic demo sessions deliberately do not exist in any external transport.
+    // Health-checking them would call the adapter, mark the fake session STOPPED,
+    // and raise a misleading disconnection alert.
+    if (isSyntheticDemoChannelMetadata(s.metadata)) continue;
+
     // Pergunta ao CANAL, não ao provider: quem tem sessão para consultar
     // implementa `checkHealth`; quem não tem simplesmente não o expõe, e o vigia
     // segue adiante sem nunca perguntar QUEM ele é — o invariante 1 da doutrina.
