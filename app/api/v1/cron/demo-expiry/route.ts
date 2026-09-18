@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { fail, ok } from "@/lib/api/wrappers";
 import { cleanupExpiredDemos } from "@/lib/demo/cleanup";
+import { demoProvisioningEnabled } from "@/lib/demo/safety";
 import { env } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -16,6 +17,12 @@ async function handle(req: NextRequest): Promise<Response> {
 
   if (accepted.length === 0 || !provided || !accepted.includes(provided)) {
     return fail("forbidden", "Cron secret missing or invalid.", 403, { requestId });
+  }
+
+  // Merged code must remain inert on production and on ordinary installations.
+  // The same safety gate also hard-blocks the known production Supabase project.
+  if (!demoProvisioningEnabled()) {
+    return ok({ skipped: true, organizationsDeleted: 0, usersDeleted: 0 }, { requestId });
   }
 
   try {
