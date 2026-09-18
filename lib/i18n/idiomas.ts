@@ -59,8 +59,8 @@ export const IDIOMA_PADRAO: Idioma = "pt-BR";
  */
 export function normalizarIdioma(bruto: string | null | undefined): Idioma {
   const valor = (bruto ?? "").trim();
-  if (valor === "pt" || valor.toLowerCase() === "pt-pt") return "pt-PT";
-  if (valor.toLowerCase() === "pt-br") return "pt-BR";
+  if (valor.toLowerCase() === "pt-pt") return "pt-PT";
+  if (valor === "pt" || valor.toLowerCase() === "pt-br") return "pt-BR";
   if (valor === "es" || /^es-(CO|MX|ES)$/i.test(valor)) return "es";
   return (IDIOMAS as readonly string[]).includes(valor) ? (valor as Idioma) : IDIOMA_PADRAO;
 }
