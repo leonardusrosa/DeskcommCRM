@@ -24,6 +24,7 @@ import { NextResponse } from "next/server";
 
 import { loadAuthUser, resolveActiveOrg } from "@/lib/auth/server";
 import { ARCHIVED_AT, queryTolerantToMissingArchived } from "@/lib/channels/archived";
+import { isSyntheticDemoChannelMetadata } from "@/lib/demo/runtime";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -51,14 +52,21 @@ export async function GET(
   // arquivado, e exigir a coluna aqui apagaria o QR de quem está pareando agora
   // — o passo mais frágil da primeira instalação.
   const { data: sessionRaw } = await queryTolerantToMissingArchived(
-    () => buscar(`waha_session_name, ${ARCHIVED_AT}`),
-    () => buscar("waha_session_name"),
+    () => buscar(`waha_session_name, metadata, ${ARCHIVED_AT}`),
+    () => buscar("waha_session_name, metadata"),
   );
   const session = sessionRaw as {
     waha_session_name: string | null;
     archived_at?: string | null;
+    metadata?: unknown;
   } | null;
   if (!session) return new NextResponse(null, { status: 404 });
+  if (isSyntheticDemoChannelMetadata(session.metadata)) {
+    return new NextResponse(null, {
+      status: 409,
+      headers: { "x-channel-state": "synthetic-demo" },
+    });
+  }
   // 409, não 404: o canal ESTÁ na organização — foi excluído. O corpo é vazio
   // porque quem consome isto é um <img>; o cabeçalho é para quem depura.
   if (session.archived_at) {
