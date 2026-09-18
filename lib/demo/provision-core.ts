@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DentalDemoTemplate } from "./types";
 import { syntheticDemoChannelSessionRow } from "@/lib/channels/demo-session";
 
-export const DEMO_EMAIL_DOMAIN = "demo.deskcomm.invalid";
+export const DEMO_EMAIL_DOMAIN = "demo.example.invalid";
 
 const DEMO_PHONE_BY_COUNTRY: Record<DentalDemoTemplate["country"], string> = {
   CO: "+573009990001",
