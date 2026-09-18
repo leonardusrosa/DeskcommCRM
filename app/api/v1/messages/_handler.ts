@@ -30,6 +30,7 @@ import {
 import type { ListMessagesQuery, SendMessageInput } from "@/lib/schemas";
 import { sendTemplateForSession } from "@/lib/channels/meta/send-template-for-session";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isSyntheticDemoChannelMetadata } from "@/lib/demo/runtime";
 import type { Message } from "@/lib/types/messaging";
 
 type SB = SupabaseClient;
@@ -269,7 +270,7 @@ export async function sendMessageHandler(
   // envio com 42703. Sem a coluna, nada está arquivado — e a consulta sem ela é a
   // consulta certa (ver lib/channels/archived).
   const convSelect = (comArchived: boolean) =>
-    `id, organization_id, contact_id, channel_session_id, is_group, group_chat_id, bot_silenced_until, provider_conversation_id, contacts:contact_id(phone_number, wa_identity, wa_lid, is_blocked), channel_sessions:channel_session_id(${CHANNEL_SESSION_REF_COLUMNS}, status${comArchived ? `, ${ARCHIVED_AT}` : ""})`;
+    `id, organization_id, contact_id, channel_session_id, is_group, group_chat_id, bot_silenced_until, provider_conversation_id, contacts:contact_id(phone_number, wa_identity, wa_lid, is_blocked), channel_sessions:channel_session_id(${CHANNEL_SESSION_REF_COLUMNS}, status, metadata${comArchived ? `, ${ARCHIVED_AT}` : ""})`;
   const { data: conv, error: convErr } = await queryTolerantToMissingArchived(
     () => supabase.from("conversations").select(convSelect(true)).eq("id", input.conversation_id).maybeSingle(),
     () => supabase.from("conversations").select(convSelect(false)).eq("id", input.conversation_id).maybeSingle(),
@@ -298,7 +299,7 @@ export async function sendMessageHandler(
       wa_lid: string | null;
       is_blocked: boolean;
     } | null;
-    channel_sessions: (ChannelSessionRef & { status: string; archived_at?: string | null }) | null;
+    channel_sessions: (ChannelSessionRef & { status: string; metadata: unknown; archived_at?: string | null }) | null;
   };
   const c = conv as unknown as Joined;
 
@@ -484,11 +485,36 @@ export async function sendMessageHandler(
   }
   let message = created as unknown as Message;
 
-  // O canal vem da SESSÃO (migration 0087), não de um literal. O fallback só
-  // alcança o caso em que o embed não trouxe a sessão — impossível hoje
-  // (`conversations.channel_session_id` é NOT NULL com FK ON DELETE RESTRICT),
-  // e ainda assim mantido para não trocar o desfecho desse ramo defensivo.
-  const adapter = getAdapter(c.channel_sessions?.provider ?? DEFAULT_CHANNEL_PROVIDER);
+  const demoDryRun = isSyntheticDemoChannelMetadata(c.channel_sessions?.metadata);
+  if (demoDryRun) {
+    const { data: updated, error: dryRunError } = await supabase
+      .from("messages")
+      .update({
+        status: "sent",
+        external_id: `demo-dry-run:${message.id}`,
+        ack: 0,
+        metadata: { ...(message.metadata ?? {}), demo_dry_run: true },
+      })
+      .eq("id", message.id)
+      .eq("organization_id", ctx.organization_id)
+      .select(MSG_COLS)
+      .maybeSingle();
+    if (dryRunError) {
+      throw new ApiError(
+        500,
+        "internal_error",
+        undefined,
+        ctx.requestId,
+        dryRunError.message,
+      );
+    }
+    if (updated) message = updated as unknown as Message;
+  } else {
+    // O canal vem da SESSÃO (migration 0087), não de um literal. O fallback só
+    // alcança o caso em que o embed não trouxe a sessão — impossível hoje
+    // (`conversations.channel_session_id` é NOT NULL com FK ON DELETE RESTRICT),
+    // e ainda assim mantido para não trocar o desfecho desse ramo defensivo.
+    const adapter = getAdapter(c.channel_sessions?.provider ?? DEFAULT_CHANNEL_PROVIDER);
   const chatId = adapter.resolveRecipient({
     isGroup: c.is_group,
     groupChatId: c.group_chat_id,
@@ -742,6 +768,7 @@ export async function sendMessageHandler(
         .maybeSingle();
       if (updated) message = updated as unknown as Message;
     }
+  }
   }
 
   const conversationUpdate: {
