@@ -5,6 +5,7 @@ import { DENTAL_DEMO_TEMPLATES, getDentalDemoTemplate } from "@/lib/demo/templat
 import { normalizarIdioma } from "@/lib/i18n/idiomas";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { FUSOS_OFERECIDOS } from "@/lib/tempo/fusos";
+import { localeDeData, tagDeIdioma } from "@/lib/i18n/datas";
 import { readFileSync } from "node:fs";
 
 describe("dental demo templates — lead readiness", () => {
@@ -101,6 +102,8 @@ describe("dental demo templates — lead readiness", () => {
     expect(traduzir("Contatos", "pt-PT")).toBe("Contactos");
     expect(traduzir("Equipe", "pt-PT")).toBe("Equipa");
     expect(traduzir("Configurações", "pt-PT")).toBe("Definições");
+    expect(tagDeIdioma("pt-PT")).toBe("pt-PT");
+    expect(localeDeData("pt-PT").code).toBe("pt");
   });
 });
 
