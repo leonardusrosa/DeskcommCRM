@@ -18,27 +18,11 @@ function demoPassword(): string {
   return `Demo-${crypto.randomBytes(12).toString("base64url")}`;
 }
 
-async function assertDemoCapacity(): Promise<void> {
-  const admin = createAdminClient();
-  const { count, error } = await admin
-    .from("organizations")
-    .select("id", { count: "exact", head: true })
-    .contains("settings", { demo: true })
-    .gt("settings->>demo_expires_at", new Date().toISOString());
-
-  if (error) throw new Error(`Demo capacity check: ${error.message}`);
-  if ((count || 0) >= 25) {
-    throw new Error("Demo capacity reached. Try again after an existing demo expires.");
-  }
-}
-
 export async function provisionDentalDemo(
   template: DentalDemoTemplate,
   requestedCompany?: string,
 ): Promise<DemoProvisionSummary> {
   assertDemoProvisioningAllowed();
-  await assertDemoCapacity();
-
   const admin = createAdminClient();
   const token = instanceToken();
   const password = demoPassword();
