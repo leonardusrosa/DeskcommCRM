@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DentalDemoTemplate } from "./types";
+import { syntheticDemoChannelSessionRow } from "@/lib/channels/demo-session";
 
 export const DEMO_EMAIL_DOMAIN = "demo.deskcomm.invalid";
 
@@ -129,16 +130,18 @@ export async function seedDemoInfrastructure(
   }
 
   const ownerId = users.get("owner")!.id;
-  const { data: channel, error: channelError } = await admin.from("channel_sessions").insert({
-    organization_id: orgId,
-    waha_session_name: `demo-${template.country.toLowerCase()}-${token}`,
-    webhook_secret_encrypted: "\\x64656d6f",
-    status: "WORKING",
-    phone_number: DEMO_PHONE_BY_COUNTRY[template.country],
-    display_name: "WhatsApp Demo",
-    metadata: { demo: true, synthetic: true },
-    created_by: ownerId,
-  }).select("id").single();
+  const { data: channel, error: channelError } = await admin
+    .from("channel_sessions")
+    .insert(
+      syntheticDemoChannelSessionRow({
+        organizationId: orgId,
+        token: `${template.country.toLowerCase()}-${token}`,
+        phoneNumber: DEMO_PHONE_BY_COUNTRY[template.country],
+        createdBy: ownerId,
+      }),
+    )
+    .select("id")
+    .single();
   if (channelError || !channel) {
     throw new Error(`Demo channel: ${channelError?.message || "create failed"}`);
   }
