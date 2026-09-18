@@ -21,7 +21,7 @@ export const DENTAL_DEMO_CATALOG: DentalDemoCatalogCard[] = [
     description:
       "Entorno sintético preparado para mostrar el flujo completo desde una consulta por WhatsApp hasta la cita y el seguimiento en CRM.",
     highlights: ["Bogotá · COP · +57", "Equipo de recepción + odontólogos", "Datos 100% sintéticos"],
-    included: ["Inbox WhatsApp de demostración", "Pipeline dental", "Agenda multi-profesional", "Servicios odontológicos"],
+    included: ["Inbox WhatsApp de demostración", "Etapas comerciales", "Agenda multi-profesional", "Servicios odontológicos"],
   },
   {
     country: "MX",
@@ -32,7 +32,7 @@ export const DENTAL_DEMO_CATALOG: DentalDemoCatalogCard[] = [
     description:
       "Demo sintética localizada para México con conversaciones, contactos, oportunidades y citas listas para recorrer durante una presentación.",
     highlights: ["CDMX · MXN · +52", "Flujo de tratamientos", "Datos 100% sintéticos"],
-    included: ["Inbox WhatsApp de demostración", "Pipeline dental", "Agenda multi-profesional", "Servicios odontológicos"],
+    included: ["Inbox WhatsApp de demostración", "Etapas comerciales", "Agenda multi-profesional", "Servicios odontológicos"],
   },
   {
     country: "ES",
@@ -43,7 +43,7 @@ export const DENTAL_DEMO_CATALOG: DentalDemoCatalogCard[] = [
     description:
       "Entorno sintético para enseñar cómo recepción y especialistas comparten conversaciones, oportunidades y agenda sin sustituir el software clínico existente.",
     highlights: ["Madrid · EUR · +34", "Equipo multi-especialista", "Datos 100% sintéticos"],
-    included: ["Inbox WhatsApp de demostración", "Pipeline dental", "Agenda nativa", "Seguimiento comercial"],
+    included: ["Inbox WhatsApp de demostración", "Etapas comerciales", "Agenda nativa", "Seguimiento comercial"],
   },
   {
     country: "PT",
@@ -54,7 +54,7 @@ export const DENTAL_DEMO_CATALOG: DentalDemoCatalogCard[] = [
     description:
       "Ambiente sintético em português europeu para demonstrar atendimento por WhatsApp, acompanhamento comercial e agenda sem substituir o software clínico.",
     highlights: ["Lisboa · EUR · +351", "Vocabulário pt-PT", "Dados 100% sintéticos"],
-    included: ["Inbox WhatsApp de demonstração", "Pipeline dentário", "Agenda multi-profissional", "Serviços dentários"],
+    included: ["Inbox WhatsApp de demonstração", "Etapas de tratamento", "Agenda multi-profissional", "Serviços dentários"],
   },
 ];
 
