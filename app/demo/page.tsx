@@ -2,12 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { DemoRequestForm } from "@/components/demo/DemoRequestForm";
 import { demoProvisioningEnabled } from "@/lib/demo/safety";
+import { branding } from "@/lib/branding";
 import type { DemoCountry } from "@/lib/demo/types";
 
-export const metadata: Metadata = {
-  title: "Demo dental — Deskcomm",
-  description: "Prueba Deskcomm con un entorno dental sintético localizado para Colombia, México, España o Portugal.",
-};
+export function generateMetadata(): Metadata {
+  const { name } = branding();
+  return {
+    title: "Demo dental",
+    description: `Prueba ${name} con un entorno dental sintético localizado para Colombia, México, España o Portugal.`,
+  };
+}
 
 const VALID_COUNTRIES = new Set<DemoCountry>(["CO", "MX", "ES", "PT"]);
 
@@ -20,6 +24,7 @@ export default async function DemoPage({
   const candidate = (params?.country || "CO").toUpperCase() as DemoCountry;
   const country = VALID_COUNTRIES.has(candidate) ? candidate : "CO";
   const pt = country === "PT";
+  const { name: brandName } = branding();
 
   return (
     <main className="min-h-screen">
@@ -30,13 +35,13 @@ export default async function DemoPage({
           </p>
           <h1 className="text-4xl font-bold tracking-tight md:text-5xl">
             {pt
-              ? "Veja como o Deskcomm funciona na receção de uma clínica dentária"
-              : "Mira cómo funciona Deskcomm en la recepción de una clínica dental"}
+              ? `Veja como o ${brandName} funciona na receção de uma clínica dentária`
+              : `Mira cómo funciona ${brandName} en la recepción de una clínica dental`}
           </h1>
           <p className="text-lg leading-relaxed text-muted-foreground">
             {pt
-              ? "Explore conversas fictícias de WhatsApp, pacientes sintéticos, oportunidades comerciais e uma agenda com vários profissionais. A demonstração mostra funções reais do MVP sem sugerir integrações ou módulos clínicos que o Deskcomm não oferece."
-              : "Recorre conversaciones ficticias de WhatsApp, pacientes sintéticos, oportunidades comerciales y una agenda con varios profesionales. La demo muestra funciones reales del MVP sin afirmar integraciones o módulos clínicos que Deskcomm no ofrece."}
+              ? `Explore conversas fictícias de WhatsApp, pacientes sintéticos, oportunidades comerciais e uma agenda com vários profissionais. A demonstração mostra funções reais do MVP sem sugerir integrações ou módulos clínicos que o ${brandName} não oferece.`
+              : `Recorre conversaciones ficticias de WhatsApp, pacientes sintéticos, oportunidades comerciales y una agenda con varios profesionales. La demo muestra funciones reales del MVP sin afirmar integraciones o módulos clínicos que ${brandName} no ofrece.`}
           </p>
           <div className="grid gap-3 text-sm sm:grid-cols-2">
             <div className="rounded-md border p-4"><strong>Inbox</strong><br />{pt ? "Conversas sintéticas de receção" : "Conversaciones sintéticas de recepción"}</div>
