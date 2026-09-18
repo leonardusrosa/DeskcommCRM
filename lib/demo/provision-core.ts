@@ -42,25 +42,30 @@ export async function createDemoOrganization(
   requestedCompany?: string,
 ): Promise<string> {
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await admin.from("organizations").insert({
-    slug,
-    display_name: requestedCompany?.trim() || template.orgName,
-    legal_name: template.legalName,
-    timezone: template.timezone,
-    locale: template.locale,
-    settings: {
-      demo: true,
-      synthetic_data: true,
-      vertical: "dental-clinic",
-      country: template.country,
-      currency: template.currency,
-      scenario: template.scenario,
-      demo_expires_at: expiresAt,
-    },
-    onboarded_at: new Date().toISOString(),
-  }).select("id").single();
+  const settings = {
+    demo: true,
+    synthetic_data: true,
+    vertical: "dental-clinic",
+    country: template.country,
+    currency: template.currency,
+    scenario: template.scenario,
+    demo_expires_at: expiresAt,
+  };
+
+  // Capacity + insert are ONE database transaction. The function takes an
+  // advisory xact lock before counting active demos, so parallel anonymous
+  // requests cannot all observe the same free slot and oversubscribe the cap.
+  const { data, error } = await admin.rpc("fn_create_demo_organization" as never, {
+    p_slug: slug,
+    p_display_name: requestedCompany?.trim() || template.orgName,
+    p_legal_name: template.legalName,
+    p_timezone: template.timezone,
+    p_locale: template.locale,
+    p_settings: settings,
+    p_onboarded_at: new Date().toISOString(),
+  } as never);
   if (error || !data) throw new Error(`Demo organization: ${error?.message || "create failed"}`);
-  return String(data.id);
+  return String(data);
 }
 
 export async function createDemoUsers(
@@ -76,34 +81,44 @@ export async function createDemoUsers(
   const users = new Map<string, { id: string; name: string }>();
   const createdUserIds: string[] = [];
 
-  for (const spec of template.users) {
-    const email = demoEmail(spec.email, token);
-    const { data, error } = await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        full_name: spec.name,
-        title: spec.title,
-        locale: template.locale,
-        timezone: template.timezone,
-        demo: true,
-      },
-    });
-    if (error || !data.user) throw new Error(`Demo user: ${error?.message || "create failed"}`);
-    createdUserIds.push(data.user.id);
+  try {
+    for (const spec of template.users) {
+      const email = demoEmail(spec.email, token);
+      const { data, error } = await admin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: spec.name,
+          title: spec.title,
+          locale: template.locale,
+          timezone: template.timezone,
+          demo: true,
+        },
+      });
+      if (error || !data.user) throw new Error(`Demo user: ${error?.message || "create failed"}`);
+      createdUserIds.push(data.user.id);
 
-    const { error: membershipError } = await admin.from("user_organizations").insert({
-      user_id: data.user.id,
-      organization_id: orgId,
-      role: spec.role,
-      accepted_at: new Date().toISOString(),
-    });
-    if (membershipError) throw new Error(`Demo membership: ${membershipError.message}`);
-    users.set(spec.key, { id: data.user.id, name: spec.name });
+      const { error: membershipError } = await admin.from("user_organizations").insert({
+        user_id: data.user.id,
+        organization_id: orgId,
+        role: spec.role,
+        accepted_at: new Date().toISOString(),
+      });
+      if (membershipError) throw new Error(`Demo membership: ${membershipError.message}`);
+      users.set(spec.key, { id: data.user.id, name: spec.name });
+    }
+
+    return { users, createdUserIds };
+  } catch (error) {
+    // A caller only receives createdUserIds after this function returns.
+    // Therefore partial auth users MUST be cleaned here, otherwise a failure
+    // halfway through membership creation leaks valid demo credentials.
+    for (const userId of createdUserIds) {
+      await admin.auth.admin.deleteUser(userId).catch(() => undefined);
+    }
+    throw error;
   }
-
-  return { users, createdUserIds };
 }
 
 export async function seedDemoInfrastructure(
