@@ -114,15 +114,20 @@ describe("dental demo templates — lead readiness", () => {
     expect(isExpiredDemoSettings({ demo: false, demo_expires_at: "2020-01-01T00:00:00.000Z" }, now)).toBe(false);
   });
 
-  it("keeps the capacity gate transactional in Postgres", () => {
+  it("keeps the capacity gate transactional in Postgres and in the fresh-install baseline", () => {
     const migration = readFileSync(
       "supabase/migrations/20260918140000_0181_demo_capacity_atomica.sql",
       "utf8",
     );
-    expect(migration).toContain("pg_advisory_xact_lock");
-    expect(migration).toContain("v_active >= 25");
-    expect(migration).toContain("grant execute");
-    expect(migration).toContain("to service_role");
+    const baseline = readFileSync("supabase/baseline.sql", "utf8");
+
+    for (const sql of [migration, baseline]) {
+      expect(sql).toContain("fn_create_demo_organization");
+      expect(sql).toContain("pg_advisory_xact_lock");
+      expect(sql).toContain("v_active >= 25");
+      expect(sql).toContain("grant execute");
+      expect(sql).toContain("to service_role");
+    }
   });
 
   it("channel health skips synthetic demo sessions before transport", () => {
