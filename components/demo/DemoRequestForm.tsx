@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDemoRequest } from "@/hooks/useDemoRequest";
+import { useMarcaDaInstalacao } from "@/lib/branding/contexto";
 import type { DemoCountry } from "@/lib/demo/types";
 
 const COUNTRIES: Array<{ code: DemoCountry; label: string; flag: string }> = [
@@ -23,6 +24,7 @@ export function DemoRequestForm({
   provisioningEnabled: boolean;
 }) {
   const state = useDemoRequest(initialCountry);
+  const { name: brandName } = useMarcaDaInstalacao();
   const pt = state.country === "PT";
 
   if (state.created) {
@@ -43,7 +45,7 @@ export function DemoRequestForm({
             <p><strong>{pt ? "Palavra-passe temporária" : "Contraseña temporal"}:</strong> <code>{state.created.password}</code></p>
           </div>
           <Button asChild className="w-full">
-            <Link href={state.created.loginUrl}>{pt ? "Abrir Deskcomm" : "Abrir Deskcomm"}</Link>
+            <Link href={state.created.loginUrl}>{pt ? `Abrir ${brandName}` : `Abrir ${brandName}`}</Link>
           </Button>
         </CardContent>
       </Card>
