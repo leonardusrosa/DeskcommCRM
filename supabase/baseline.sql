@@ -31922,6 +31922,68 @@ end $$;
 revoke execute on function public.fn_reaplicar_modulos_instalados() from public, anon, authenticated, service_role;
 revoke execute on function public.fn_conferir_modulos_instalados() from public, anon, authenticated, service_role;
 
+-- ---- DEMO CAPACITY ATOMICA (migration 0343) ----
+create or replace function public.fn_create_demo_organization(
+  p_slug text,
+  p_display_name text,
+  p_legal_name text,
+  p_timezone text,
+  p_locale text,
+  p_settings jsonb,
+  p_onboarded_at timestamptz
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_active integer;
+  v_id uuid;
+begin
+  perform pg_advisory_xact_lock(hashtext('deskcomm:demo-capacity'));
+
+  select count(*)
+    into v_active
+    from public.organizations
+   where settings @> '{"demo": true}'::jsonb
+     and nullif(settings->>'demo_expires_at', '')::timestamptz > now();
+
+  if v_active >= 25 then
+    raise exception 'Demo capacity reached. Try again after an existing demo expires.';
+  end if;
+
+  insert into public.organizations (
+    slug,
+    display_name,
+    legal_name,
+    timezone,
+    locale,
+    settings,
+    onboarded_at
+  )
+  values (
+    p_slug,
+    p_display_name,
+    p_legal_name,
+    p_timezone,
+    p_locale,
+    p_settings,
+    p_onboarded_at
+  )
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+revoke all on function public.fn_create_demo_organization(
+  text, text, text, text, text, jsonb, timestamptz
+) from public, anon, authenticated;
+grant execute on function public.fn_create_demo_organization(
+  text, text, text, text, text, jsonb, timestamptz
+) to service_role;
+
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
 -- ⚠️ DE PROPÓSITO, NENHUMA FUNÇÃO É CRIADA DEPOIS DESTE BLOCO. Apêndice que cria

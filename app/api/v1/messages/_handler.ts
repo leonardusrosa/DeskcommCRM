@@ -34,6 +34,7 @@ import {
   type ChannelSessionRef,
 } from "@/lib/channels";
 import { ARCHIVED_AT, queryTolerantToMissingArchived } from "@/lib/channels/archived";
+import { isSyntheticDemoChannelMetadata } from "@/lib/demo/runtime";
 import { conferirDefinicao } from "@/lib/channels/conferir-definicao";
 import { isMediaPathOwnedBy } from "@/lib/messaging/media/upload-validation";
 import {
@@ -373,7 +374,7 @@ export async function sendMessageHandler(
   // envio com 42703. Sem a coluna, nada está arquivado — e a consulta sem ela é a
   // consulta certa (ver lib/channels/archived).
   const convSelect = (comArchived: boolean) =>
-    `id, organization_id, contact_id, channel_session_id, is_group, group_chat_id, bot_silenced_until, provider_conversation_id, last_inbound_at, contacts:contact_id(phone_number, wa_identity, wa_lid, is_blocked), channel_sessions:channel_session_id(${CHANNEL_SESSION_REF_COLUMNS}, status${comArchived ? `, ${ARCHIVED_AT}` : ""})`;
+    `id, organization_id, contact_id, channel_session_id, is_group, group_chat_id, bot_silenced_until, provider_conversation_id, last_inbound_at, contacts:contact_id(phone_number, wa_identity, wa_lid, is_blocked), channel_sessions:channel_session_id(${CHANNEL_SESSION_REF_COLUMNS}, status, metadata${comArchived ? `, ${ARCHIVED_AT}` : ""})`;
   //
   // O filtro por `organization_id` NÃO é redundância com a RLS — é a única
   // proteção que existe na metade dos chamadores. Este handler é a porta de
@@ -442,7 +443,7 @@ export async function sendMessageHandler(
       wa_lid: string | null;
       is_blocked: boolean;
     } | null;
-    channel_sessions: (ChannelSessionRef & { status: string; archived_at?: string | null }) | null;
+    channel_sessions: (ChannelSessionRef & { status: string; archived_at?: string | null; metadata?: unknown }) | null;
   };
   const c = conv as unknown as Joined;
 
@@ -658,6 +659,35 @@ export async function sendMessageHandler(
     );
   }
   let message = created as unknown as Message;
+
+  if (isSyntheticDemoChannelMetadata(c.channel_sessions?.metadata)) {
+    const { data: updated, error } = await supabase
+      .from("messages")
+      .update({
+        status: "sent",
+        external_id: `demo-dry-run:${message.id}`,
+        ack: 0,
+        metadata: {
+          ...((message.metadata as Record<string, unknown> | null) ?? {}),
+          demo_dry_run: true,
+        },
+      })
+      .eq("organization_id", ctx.organization_id)
+      .eq("id", message.id)
+      .select(MSG_COLS)
+      .single();
+
+    if (error || !updated) {
+      throw new ApiError(
+        500,
+        "internal_error",
+        undefined,
+        ctx.requestId,
+        "Não foi possível registrar o envio da demonstração.",
+      );
+    }
+    return updated as unknown as Message;
+  }
 
   // O canal vem da SESSÃO (migration 0087), não de um literal. O fallback só
   // alcança o caso em que o embed não trouxe a sessão — impossível hoje

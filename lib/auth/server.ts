@@ -16,6 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { empresaExigeMfa, exigeCadastroDeMfa } from "@/lib/auth/politica-mfa";
 import { normalizarIdioma } from "@/lib/i18n/idiomas";
+import { isExpiredDemoSettings } from "@/lib/demo/expiry";
 import type { AuthUser, Role, UserOrgMembership, ActiveOrg } from "./types";
 
 const ACTIVE_ORG_COOKIE = "active_org";
@@ -32,6 +33,7 @@ interface RawMembershipRow {
 interface OrgJoin {
   display_name: string;
   locale: string | null;
+  settings?: unknown;
 }
 
 /**
@@ -166,7 +168,7 @@ export const loadAuthUser = cache(async (): Promise<AuthUser | null> => {
       supabase
         .from("user_organizations")
         .select(
-          "organization_id, role, interface_settings, accepted_at, organizations(display_name, locale)",
+          "organization_id, role, interface_settings, accepted_at, organizations(display_name, locale, settings)",
         )
         .eq("user_id", user.id)
         .is("revoked_at", null)
@@ -207,17 +209,23 @@ export const loadAuthUser = cache(async (): Promise<AuthUser | null> => {
   }
 
   const rows = (rawMemberships ?? []) as RawMembershipRow[];
-  const memberships: UserOrgMembership[] = rows.map((row) => {
-    const orgs = row.organizations;
-    const org = Array.isArray(orgs) ? (orgs[0] ?? null) : orgs;
-    return {
-      organization_id: row.organization_id,
-      organization_name: org?.display_name ?? "—",
-      role: row.role as Role,
-      interface_settings: lerInterface(row.interface_settings).settings,
-      locale: org?.locale ?? null,
-    };
-  });
+  const memberships: UserOrgMembership[] = rows
+    .filter((row) => {
+      const orgs = row.organizations;
+      const org = Array.isArray(orgs) ? (orgs[0] ?? null) : orgs;
+      return !isExpiredDemoSettings(org?.settings);
+    })
+    .map((row) => {
+      const orgs = row.organizations;
+      const org = Array.isArray(orgs) ? (orgs[0] ?? null) : orgs;
+      return {
+        organization_id: row.organization_id,
+        organization_name: org?.display_name ?? "—",
+        role: row.role as Role,
+        interface_settings: lerInterface(row.interface_settings).settings,
+        locale: org?.locale ?? null,
+      };
+    });
 
   const support = await readSupportContext(supabase);
   const fullName = (user.user_metadata?.full_name as string | undefined) ?? null;

@@ -32,6 +32,7 @@
  * do que estava.
  */
 import type { Idioma } from "./idiomas";
+import { traduzirPtPt } from "./pt-pt";
 
 /** `pt-BR` não aparece: é a chave. Só o que DIFERE precisa de linha. */
 type Traducoes = Record<string, Partial<Record<Exclude<Idioma, "pt-BR">, string>>>;
@@ -10092,6 +10093,45 @@ export const DICIONARIO: Traducoes = {
   'A origem aparece na ficha do contato e no filtro "Site (landing page)" da lista de contatos.': {
     es: 'El origen aparece en la ficha del contacto y en el filtro "Sitio (landing page)" de la lista de contactos.',
   },
+  // ─── vitrine de demonstrações dentárias sintéticas ───
+  "Voltar para demo": { es: "Volver a la demo" },
+  "O mesmo": { es: "El mismo" },
+  "preparado para cada mercado": { es: "preparado para cada mercado" },
+  "Cada ambiente usa apenas dados sintéticos e mostra o fluxo MVP real: recepção por WhatsApp, contatos, acompanhamento comercial e agenda multi-profissional. Não inclui módulos clínicos nem integrações PMS simuladas.": {
+    es: "Cada entorno usa únicamente datos sintéticos y enseña el flujo MVP real: recepción por WhatsApp, contactos, seguimiento comercial y agenda multi-profesional. No incluye módulos clínicos ni integraciones PMS simuladas.",
+  },
+  "Demonstração dentária sintética": { es: "Demo dental sintética" },
+  "Veja como o": { es: "Mira cómo" },
+  "funciona na recepção de uma clínica dentária": { es: "funciona en la recepción de una clínica dental" },
+  "Explore conversas fictícias de WhatsApp, pacientes sintéticos, oportunidades comerciais e uma agenda com vários profissionais. A demonstração mostra funções reais do MVP sem sugerir integrações ou módulos clínicos que a plataforma não oferece.": {
+    es: "Recorre conversaciones ficticias de WhatsApp, pacientes sintéticos, oportunidades comerciales y una agenda con varios profesionales. La demo muestra funciones reales del MVP sin afirmar integraciones o módulos clínicos que la plataforma no ofrece.",
+  },
+  "Conversas sintéticas de recepção": { es: "Conversaciones sintéticas de recepción" },
+  "Funil de tratamentos e acompanhamento": { es: "Embudo de tratamientos y seguimiento" },
+  "Serviços, especialistas e agendamentos": { es: "Servicios, especialistas y citas" },
+  "Mercado": { es: "Mercado" },
+  "CO, MX, ES e PT localizados": { es: "CO, MX, ES y PT localizados" },
+  "Comparar os quatro ambientes →": { es: "Comparar los cuatro entornos →" },
+  "Demonstração preparada": { es: "Demo preparada" },
+  "Este ambiente contém apenas dados sintéticos e expira em": { es: "Este ambiente contiene únicamente datos sintéticos y expira en" },
+  "horas.": { es: "horas." },
+  "Clínica": { es: "Clínica" },
+  "Senha temporária": { es: "Contraseña temporal" },
+  "Criar um ambiente dentário de demonstração": { es: "Crear un entorno dental de demostración" },
+  "Inbox, CRM e agenda com pacientes e conversas fictícias. Não são utilizados dados de clientes reais.": {
+    es: "Inbox, CRM y agenda con pacientes y conversaciones ficticias. No se utilizan datos de clientes reales.",
+  },
+  "O catálogo está disponível para apresentação. A criação automática de ambientes está desativada nesta instalação.": {
+    es: "El catálogo está disponible para presentación. La creación automática de entornos está desactivada en esta instalación.",
+  },
+  "Um operador só pode ativá-la no ambiente isolado de demonstrações.": {
+    es: "Un operador puede habilitarla únicamente en el entorno de demos aislado.",
+  },
+  "País da demonstração": { es: "País de la demo" },
+  "Nome da clínica (opcional)": { es: "Nombre de la clínica (opcional)" },
+  "Clínica Dentária Central": { es: "Clínica Dental Central" },
+  "Preparando ambiente…": { es: "Preparando ambiente…" },
+  "Criar demonstração sintética": { es: "Crear demo sintética" },
 };
 
 /**
@@ -10101,7 +10141,8 @@ export const DICIONARIO: Traducoes = {
  * português, que é exatamente o comportamento de antes desta feature. Uma
  * tradução parcial não pode deixar a tela PIOR do que estava.
  */
-export function traduzir(texto: string, idioma: Idioma): string {
+export function traduzir(texto: string, idioma: Idioma | "pt-PT"): string {
   if (idioma === "pt-BR") return texto;
+  if (idioma === "pt-PT") return traduzirPtPt(texto);
   return DICIONARIO[texto]?.[idioma] ?? texto;
 }

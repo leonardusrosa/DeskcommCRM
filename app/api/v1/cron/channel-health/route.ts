@@ -54,6 +54,7 @@ import {
 } from "@/lib/channels";
 import { sincronizarSaudeDaConexao } from "@/lib/channels/health";
 import { env } from "@/lib/env";
+import { isSyntheticDemoChannelMetadata } from "@/lib/demo/runtime";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -69,6 +70,7 @@ type LinhaDeSessao = ChannelSessionRef & {
   display_name: string | null;
   phone_number: string | null;
   archived_at: string | null;
+  metadata?: unknown;
 };
 
 async function handle(req: NextRequest): Promise<Response> {
@@ -89,7 +91,7 @@ async function handle(req: NextRequest): Promise<Response> {
   const { data, error } = await admin
     .from("channel_sessions")
     .select(
-      `id, organization_id, status, display_name, phone_number, archived_at, ${CHANNEL_SESSION_REF_COLUMNS}`,
+      `id, organization_id, status, display_name, phone_number, archived_at, metadata, ${CHANNEL_SESSION_REF_COLUMNS}`,
     )
     .is("archived_at", null)
     .limit(LIMITE);
@@ -105,6 +107,11 @@ async function handle(req: NextRequest): Promise<Response> {
   let ignoradas = 0;
 
   for (const s of sessoes) {
+    if (isSyntheticDemoChannelMetadata(s.metadata)) {
+      ignoradas++;
+      continue;
+    }
+
     // Canal CONHECIDO que não transporta mensagem não tem saúde de mensagem a
     // vigiar — e a linha de chamada de voz (spec 18) é uma dessas. Este
     // `continue` vem ANTES de `getAdapter` de propósito: é decisão de escopo,

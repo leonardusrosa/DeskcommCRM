@@ -51,6 +51,7 @@ interface ConversationShape {
   provider?: string;
   /** Canal excluído pelo usuário (migration 0106) — a linha sobrevive, o canal não. */
   archivedAt?: string | null;
+  metadata?: Record<string, unknown>;
 }
 
 function conversationRow(shape: ConversationShape = {}): Row {
@@ -75,6 +76,7 @@ function conversationRow(shape: ConversationShape = {}): Row {
             provider: shape.provider ?? 'waha',
             waha_session_name: 'default',
             status: shape.sessionStatus ?? 'WORKING',
+            metadata: shape.metadata ?? {},
             archived_at: shape.archivedAt ?? null,
           },
   };
@@ -213,6 +215,28 @@ afterEach(() => {
 });
 
 describe('sendMessageHandler — os 6 desfechos do envio', () => {
+  it('0. sessão demo sintética: persiste localmente e NUNCA alcança adapter/rede', async () => {
+    wahaConfigured(true);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const msg = await sendMessageHandler(
+      makeSupabase(
+        conversationRow({
+          provider: 'canal_inexistente',
+          metadata: { demo: true, synthetic: true },
+        }),
+      ),
+      ctx,
+      textInput(),
+    );
+
+    expect(msg.status).toBe('sent');
+    expect(msg.external_id).toBe(`demo-dry-run:${msg.id}`);
+    expect((msg.metadata as Record<string, unknown>).demo_dry_run).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("revalida a lista no sink, inclusive para automação, sem transformar teste em opt-out", async () => {
     wahaConfigured(true);
     const fetchMock = vi.fn();

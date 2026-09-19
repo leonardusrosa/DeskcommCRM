@@ -88,6 +88,7 @@ CRONS="
 */30 * * * *|60|api/v1/cron/contact-phones
 17 * * * *|60|api/v1/cron/contact-proposals-watcher
 23 * * * *|60|api/v1/cron/followup-sem-agente
+23 * * * *|60|api/v1/cron/demo-expiry
 # O ANIVERSÁRIO. De hora em hora, e não uma vez ao dia, porque quem decide o
 # momento é o relógio de parede de CADA organização: a rodada só age naquela
 # cujo fuso marca a hora de parabenizar. Uma varredura diária em UTC felicitaria

@@ -4,6 +4,8 @@
  */
 export const PUBLIC_PATHS: RegExp[] = [
   /^\/$/,
+  /^\/demo(\/.*)?$/,
+  /^\/api\/demo(\/.*)?$/,
   /^\/login(\/.*)?$/,
   /^\/signup$/,
   /^\/auth\/confirm$/,

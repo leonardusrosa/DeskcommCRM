@@ -39,11 +39,15 @@ export const FUSOS_OFERECIDOS: { codigo: string; rotulo: string }[] = [
   { codigo: "America/Lima", rotulo: "Lima (Peru)" },
   { codigo: "America/Bogota", rotulo: "Bogotá (Colômbia)" },
   { codigo: "America/Mexico_City", rotulo: "Cidade do México (México)" },
+  { codigo: "America/Cancun", rotulo: "Cancún (México)" },
+  { codigo: "America/Tijuana", rotulo: "Tijuana (México)" },
   { codigo: "America/Sao_Paulo", rotulo: "São Paulo (Brasil)" },
   { codigo: "America/Manaus", rotulo: "Manaus (Brasil)" },
   { codigo: "America/Belem", rotulo: "Belém (Brasil)" },
   { codigo: "America/Recife", rotulo: "Recife (Brasil)" },
   { codigo: "America/Fortaleza", rotulo: "Fortaleza (Brasil)" },
+  { codigo: "Europe/Madrid", rotulo: "Madrid (Espanha)" },
+  { codigo: "Europe/Lisbon", rotulo: "Lisboa (Portugal)" },
   // Fora da América do Sul, e de propósito: quem instala em Angola fala
   // português e usava a lista inteira errada. Aditivo — `FUSO_PADRAO` segue
   // `America/Sao_Paulo`, então ninguém que já escolheu muda de relógio.
