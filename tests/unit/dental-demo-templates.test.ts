@@ -9,6 +9,7 @@ import { traduzir } from "@/lib/i18n/dicionario";
 import { FUSOS_OFERECIDOS } from "@/lib/tempo/fusos";
 import { localeDeData, tagDeIdioma } from "@/lib/i18n/datas";
 import { readFileSync } from "node:fs";
+import { isPublicPath } from "@/lib/auth/public-paths";
 
 describe("dental demo templates — lead readiness", () => {
   it("ships exactly the four target-market dental templates", () => {
@@ -114,15 +115,31 @@ describe("dental demo templates — lead readiness", () => {
     expect(isExpiredDemoSettings({ demo: false, demo_expires_at: "2020-01-01T00:00:00.000Z" }, now)).toBe(false);
   });
 
-  it("keeps the capacity gate transactional in Postgres", () => {
+  it("keeps the capacity gate transactional in Postgres and in the fresh-install baseline", () => {
     const migration = readFileSync(
       "supabase/migrations/20260918140000_0181_demo_capacity_atomica.sql",
       "utf8",
     );
-    expect(migration).toContain("pg_advisory_xact_lock");
-    expect(migration).toContain("v_active >= 25");
-    expect(migration).toContain("grant execute");
-    expect(migration).toContain("to service_role");
+    const baseline = readFileSync("supabase/baseline.sql", "utf8");
+
+    for (const sql of [migration, baseline]) {
+      expect(sql).toContain("fn_create_demo_organization");
+      expect(sql).toContain("pg_advisory_xact_lock");
+      expect(sql).toContain("v_active >= 25");
+      expect(sql).toContain("grant execute");
+      expect(sql).toContain("to service_role");
+    }
+
+    expect(baseline.indexOf("fn_create_demo_organization")).toBeLessThan(
+      baseline.indexOf("-- ---- VARREDURA anon:"),
+    );
+  });
+
+  it("keeps the public demo UI and provisioning API anonymous", () => {
+    expect(isPublicPath("/demo")).toBe(true);
+    expect(isPublicPath("/demo/catalog")).toBe(true);
+    expect(isPublicPath("/api/demo")).toBe(true);
+    expect(isPublicPath("/api/demo/catalog")).toBe(true);
   });
 
   it("channel health skips synthetic demo sessions before transport", () => {

@@ -21,7 +21,7 @@ export default function DemoCatalogPage() {
         <h1 className="text-4xl font-bold tracking-tight">El mismo {brandName}, preparado para cada mercado</h1>
         <p className="text-base leading-relaxed text-muted-foreground">
           Cada entorno usa únicamente datos sintéticos y enseña el flujo MVP real:
-          recepción por WhatsApp, contactos, pipeline comercial y agenda multi-profesional.
+          recepción por WhatsApp, contactos, seguimiento comercial y agenda multi-profesional.
           No incluye módulos clínicos ni integraciones PMS simuladas.
         </p>
       </header>
