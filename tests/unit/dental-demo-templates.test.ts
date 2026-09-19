@@ -9,6 +9,7 @@ import { traduzir } from "@/lib/i18n/dicionario";
 import { FUSOS_OFERECIDOS } from "@/lib/tempo/fusos";
 import { localeDeData, tagDeIdioma } from "@/lib/i18n/datas";
 import { readFileSync } from "node:fs";
+import { isPublicPath } from "@/lib/auth/public-paths";
 
 describe("dental demo templates — lead readiness", () => {
   it("ships exactly the four target-market dental templates", () => {
@@ -128,6 +129,17 @@ describe("dental demo templates — lead readiness", () => {
       expect(sql).toContain("grant execute");
       expect(sql).toContain("to service_role");
     }
+
+    expect(baseline.indexOf("fn_create_demo_organization")).toBeLessThan(
+      baseline.indexOf("-- ---- VARREDURA anon:"),
+    );
+  });
+
+  it("keeps the public demo UI and provisioning API anonymous", () => {
+    expect(isPublicPath("/demo")).toBe(true);
+    expect(isPublicPath("/demo/catalog")).toBe(true);
+    expect(isPublicPath("/api/demo")).toBe(true);
+    expect(isPublicPath("/api/demo/catalog")).toBe(true);
   });
 
   it("channel health skips synthetic demo sessions before transport", () => {
