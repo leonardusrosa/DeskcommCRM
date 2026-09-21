@@ -8,6 +8,12 @@ import * as safety from "@/lib/demo/safety";
 import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
 
+vi.mock("@/lib/env", () => ({
+  env: {
+    INTERNAL_CRON_SECRET: "cron_secret_test_12345",
+    INTERNAL_SECRET: "secret_test_12345",
+  },
+}));
 vi.mock("@/lib/impersonate/support", () => ({ requireSupportWrite: vi.fn(async () => null) }));
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: vi.fn() }));
 vi.mock("@/lib/auth/server", () => ({
@@ -173,7 +179,7 @@ describe("demo expiry and cleanup", () => {
   it("cron /api/v1/cron/demo-expiry skips execution when demo provisioning is disabled", async () => {
     vi.spyOn(safety, "demoProvisioningEnabled").mockReturnValueOnce(false);
     const req = new NextRequest("http://localhost/api/v1/cron/demo-expiry", {
-      headers: { authorization: `Bearer ${process.env.INTERNAL_CRON_SECRET || "cron_secret_staging_12345"}` },
+      headers: { authorization: "Bearer cron_secret_test_12345" },
     });
     const res = await getDemoExpiry(req);
     expect(res.status).toBe(200);
