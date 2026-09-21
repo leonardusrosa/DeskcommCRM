@@ -152,7 +152,7 @@ sudo cp infra/easypanel/deskcomm-demo.yml.example \
   /etc/easypanel/traefik/config/deskcomm-demo.yml
 ```
 
-Replace `demo.example.com` in that copied file with the real demo hostname.
+Replace `demo.deskcomm.autocora.com.br` in that copied file with the real demo hostname.
 The template declares:
 
 - HTTP router on entrypoint `http` with HTTPS redirect;
@@ -169,7 +169,7 @@ internet. The `127.0.0.1:3300` mapping remains host-local only.
 After DNS/HTTPS resolves:
 
 ```bash
-curl -fsS https://demo.example.com/api/demo/catalog
+curl -fsS https://demo.deskcomm.autocora.com.br/api/demo/catalog
 ```
 
 Then verify in a browser:
