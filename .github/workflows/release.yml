@@ -29,26 +29,25 @@ permissions:
   contents: read
 
 jobs:
-  fork-sem-release:
-    if: github.repository != 'melgarafael/DeskcommCRM'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Release automation belongs to upstream
-        run: echo "release workflow intentionally disabled in fork ${GITHUB_REPOSITORY}"
-
   abrir-pr-de-release:
-    if: github.repository == 'melgarafael/DeskcommCRM' && github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
+      - name: Fork sem automação de release
+        if: github.repository != 'melgarafael/DeskcommCRM'
+        run: echo "release automation intentionally disabled in fork ${GITHUB_REPOSITORY}"
+
       - uses: actions/create-github-app-token@v3
+        if: github.repository == 'melgarafael/DeskcommCRM'
         id: token
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
       - uses: actions/checkout@v7
+        if: github.repository == 'melgarafael/DeskcommCRM'
         with:
           # `fetch-depth: 0` porque o corte compara com as tags, e o checkout
           # raso padrão não traz nenhuma.
@@ -56,11 +55,13 @@ jobs:
           token: ${{ steps.token.outputs.token }}
 
       - uses: ./.github/actions/preparar-node
+        if: github.repository == 'melgarafael/DeskcommCRM'
         # O teto do preâmbulo mora aqui porque passo de composite action não
         # aceita `timeout-minutes`. Razão e medições: o cabeçalho da action.
         timeout-minutes: 5
 
       - name: Calcular o número e montar a seção
+        if: github.repository == 'melgarafael/DeskcommCRM'
         id: corte
         run: |
           set -euo pipefail
@@ -69,6 +70,7 @@ jobs:
           echo "versao=${versao}" >> "$GITHUB_OUTPUT"
 
       - name: Abrir o PR
+        if: github.repository == 'melgarafael/DeskcommCRM'
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
           VERSAO: ${{ steps.corte.outputs.versao }}
@@ -94,7 +96,7 @@ jobs:
             --title "Release ${VERSAO}" --body-file /tmp/corpo.md
 
   cortar-tag:
-    if: github.repository == 'melgarafael/DeskcommCRM' && github.event_name == 'push'
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -104,23 +106,31 @@ jobs:
       # Leitura só — quem escreve continua sendo o token do App.
       pull-requests: read
     steps:
+      - name: Fork sem automação de release
+        if: github.repository != 'melgarafael/DeskcommCRM'
+        run: echo "release automation intentionally disabled in fork ${GITHUB_REPOSITORY}"
+
       - uses: actions/create-github-app-token@v3
+        if: github.repository == 'melgarafael/DeskcommCRM'
         id: token
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
       - uses: actions/checkout@v7
+        if: github.repository == 'melgarafael/DeskcommCRM'
         with:
           fetch-depth: 0
           token: ${{ steps.token.outputs.token }}
 
       - uses: ./.github/actions/preparar-node
+        if: github.repository == 'melgarafael/DeskcommCRM'
         # O teto do preâmbulo mora aqui porque passo de composite action não
         # aceita `timeout-minutes`. Razão e medições: o cabeçalho da action.
         timeout-minutes: 5
 
       - name: Este push foi um corte de release?
+        if: github.repository == 'melgarafael/DeskcommCRM'
         id: pendente
         env:
           # Token de leitura para perguntar à API do GitHub quem abriu o PR de
@@ -349,7 +359,7 @@ jobs:
           fi
 
       - name: Criar e empurrar a tag
-        if: steps.pendente.outputs.cortar == 'sim'
+        if: github.repository == 'melgarafael/DeskcommCRM' && steps.pendente.outputs.cortar == 'sim'
         env:
           VERSAO: ${{ steps.pendente.outputs.versao }}
         run: |
@@ -372,7 +382,7 @@ jobs:
       # esteve, e o efeito medido na v1.3.0 foi o mesmo commit construído duas
       # vezes, movendo uma tag de versão já publicada.
       - name: Publicar a release no GitHub
-        if: steps.pendente.outputs.cortar == 'sim'
+        if: github.repository == 'melgarafael/DeskcommCRM' && steps.pendente.outputs.cortar == 'sim'
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
           VERSAO: ${{ steps.pendente.outputs.versao }}
@@ -392,7 +402,7 @@ jobs:
       # A falha desta cadeia é silenciosa por natureza — a tag existe e ninguém
       # vê erro —, então o workflow prova a CONSEQUÊNCIA em vez de supô-la.
       - name: As três imagens existem nesta versão?
-        if: steps.pendente.outputs.cortar == 'sim'
+        if: github.repository == 'melgarafael/DeskcommCRM' && steps.pendente.outputs.cortar == 'sim'
         env:
           VERSAO: ${{ steps.pendente.outputs.versao }}
         run: |
@@ -483,7 +493,7 @@ jobs:
       # a nossa. A release em si já saiu quando este passo roda — vermelho aqui
       # quer dizer "a vitrine não mostra", não "a versão não existe".
       - name: A versão aparece na página de changelog da LP?
-        if: steps.pendente.outputs.cortar == 'sim' && github.repository == 'melgarafael/DeskcommCRM'
+        if: github.repository == 'melgarafael/DeskcommCRM' && steps.pendente.outputs.cortar == 'sim' && github.repository == 'melgarafael/DeskcommCRM'
         # O teto cobre o pior caso, para o diagnóstico rodar antes de o GitHub matar o passo:
         # 35 tentativas × (3 páginas × 10 s de curl + 50 s de espera) ≈ 47 min, mais o
         # diagnóstico e as páginas das versões. Com 40 min e curl de 30 s, um site que aceita a
