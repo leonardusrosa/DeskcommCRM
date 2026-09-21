@@ -1,14 +1,14 @@
 # Copy this file to:
 #   /etc/easypanel/traefik/config/deskcomm-demo.yml
 #
-# Replace demo.example.com with the real demo hostname before writing it.
+# Replace demo.deskcomm.autocora.com.br with the real demo hostname before writing it.
 # The service name below resolves through the existing attachable Easypanel
 # overlay network, which the demo app joins as the external "proxy" network.
 
 http:
   routers:
     deskcomm-demo-http:
-      rule: Host(`demo.example.com`)
+      rule: Host(`demo.deskcomm.autocora.com.br`)
       entryPoints:
         - http
       middlewares:
@@ -16,7 +16,7 @@ http:
       service: deskcomm-demo
 
     deskcomm-demo-https:
-      rule: Host(`demo.example.com`)
+      rule: Host(`demo.deskcomm.autocora.com.br`)
       entryPoints:
         - https
       service: deskcomm-demo
