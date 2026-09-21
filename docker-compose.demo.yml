@@ -54,7 +54,7 @@ services:
     labels:
       traefik.enable: "${DEMO_TRAEFIK_ENABLED:-false}"
       traefik.docker.network: "${DEMO_PROXY_NETWORK:-deskcomm-demo-proxy}"
-      traefik.http.routers.deskcomm-demo.rule: "Host(\`${DEMO_DOMAIN}\`)"
+      traefik.http.routers.deskcomm-demo.rule: Host(`${DEMO_DOMAIN}`)
       traefik.http.routers.deskcomm-demo.entrypoints: "${TRAEFIK_ENTRYPOINT:-websecure}"
       traefik.http.routers.deskcomm-demo.tls.certresolver: "${TRAEFIK_CERTRESOLVER:-letsencrypt}"
       traefik.http.services.deskcomm-demo.loadbalancer.server.port: "3000"
