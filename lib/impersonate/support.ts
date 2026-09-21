@@ -33,7 +33,7 @@ export async function requireSupportWrite(targetOrganizationId?: string) {
     const { loadAuthUser } = await import("@/lib/auth/server");
     const user = await loadAuthUser();
     if (!user) return null;
-    const support = (user as unknown as { support?: SupportContext | null }).support;
+    const support = user.support;
     const message = supportWriteError(support, targetOrganizationId);
     return message ? fail("forbidden", message, 403) : null;
   } catch {

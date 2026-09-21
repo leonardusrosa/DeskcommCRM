@@ -1,9 +1,9 @@
 /**
  * Cost computation for AI invocations.
  *
- * Looks up `ai_pricing` (rarely changing global table) or `ai_models` catalog
- * and converts token usage to cost in *cents*, preserving decimal precision.
- * Returns `null` when pricing is unknown/missing for the token dimensions used (never fake 0).
+ * Looks up `ai_pricing` (rarely changing global table) and converts token
+ * usage to cost in *cents* (rounded up to integer to err on the side of
+ * over-billing rather than free usage).
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -33,6 +33,7 @@ async function loadPricing(): Promise<Map<string, PricingRow>> {
     .is("superseded_at", null);
 
   if (error) {
+    // Surface but don't crash — cost will be 0 and the row stays auditable.
     return _pricingCache ?? new Map();
   }
 
@@ -63,11 +64,21 @@ export interface ComputeCostInput {
 /**
  * Preço do catálogo (`ai_models`), a tabela que o cron `sync-model-catalog`
  * mantém e a ÚNICA onde chega preço de modelo da OpenRouter.
+ *
+ * `ai_pricing` é uma lista curta e escrita à mão, com os ids SEM prefixo de
+ * provider. Os workers consultam com prefixo (`anthropic/claude-…`,
+ * `meta-llama/llama-3.3-70b-instruct`), então o `get` exato errava sempre e o
+ * custo ia 0 para `bot_respond` e para todo modelo OpenRouter — a tela de Uso
+ * e a de Execuções mostrando R$ 0,00 com o dinheiro saindo, que é literalmente
+ * o sintoma citado pela 0130 como motivo da unificação.
  */
 async function precoDoCatalogo(
   modelo: string,
-): Promise<{ prompt: number | null; completion: number | null } | null> {
+): Promise<{ prompt: number; completion: number } | null> {
   const admin = createAdminClient();
+  // Duas formas do mesmo id: como veio, e sem o prefixo de provider. O catálogo
+  // guarda `model_id` como o provedor o nomeia — com prefixo na OpenRouter, sem
+  // ele na Anthropic/OpenAI.
   const semPrefixo = modelo.includes("/") ? modelo.slice(modelo.indexOf("/") + 1) : modelo;
   const { data } = await admin
     .from("ai_models")
@@ -81,77 +92,50 @@ async function precoDoCatalogo(
     input_price_per_million_cents: number | null;
     output_price_per_million_cents: number | null;
   }>;
+  // Preferir a correspondência EXATA: `llama-3.3-70b-instruct` pode existir em
+  // mais de um provedor com preços diferentes, e o id completo é quem desempata.
   const linha = linhas.find((l) => l.model_id === modelo) ?? linhas[0];
   if (!linha) return null;
-  return {
-    prompt: linha.input_price_per_million_cents !== null ? toNumber(linha.input_price_per_million_cents) : null,
-    completion: linha.output_price_per_million_cents !== null ? toNumber(linha.output_price_per_million_cents) : null,
-  };
+  const prompt = toNumber(linha.input_price_per_million_cents);
+  const completion = toNumber(linha.output_price_per_million_cents);
+  // Catálogo que conhece o modelo mas não tem preço não é melhor que ausência:
+  // devolver 0 aqui seria inventar "de graça".
+  if (prompt === 0 && completion === 0) return null;
+  return { prompt, completion };
 }
 
 /**
- * Returns cost in **cents**, preserving fractional precision.
- * Returns `null` when pricing is missing/unknown for the dimensions used.
+ * Returns cost in **cents**, rounded up. Zero when pricing missing.
  */
-export async function computeCost(input: ComputeCostInput): Promise<number | null> {
+export async function computeCost(input: ComputeCostInput): Promise<number> {
+  const pricing = await loadPricing();
+  const row = pricing.get(input.model);
+  if (!row) {
+    // `ai_pricing` não conhece: tenta o catálogo, que é onde o cron grava e
+    // onde a OpenRouter chega. Embedding não passa por aqui — o catálogo não
+    // guarda preço de embedding —, e nesse caso o desfecho é o mesmo de antes.
+    const doCatalogo = await precoDoCatalogo(input.model);
+    if (!doCatalogo) return 0;
+    const cents =
+      ((input.promptTokens ?? 0) * doCatalogo.prompt) / 1_000_000 +
+      ((input.completionTokens ?? 0) * doCatalogo.completion) / 1_000_000;
+    return Math.ceil(cents);
+  }
+
+  const promptRate = toNumber(row.prompt_cents_per_million_tokens);
+  const completionRate = toNumber(row.completion_cents_per_million_tokens);
+  const embeddingRate = toNumber(row.embedding_cents_per_million_tokens);
+
   const promptTokens = input.promptTokens ?? 0;
   const completionTokens = input.completionTokens ?? 0;
   const embeddingTokens = input.embeddingTokens ?? 0;
 
-  if (promptTokens === 0 && completionTokens === 0 && embeddingTokens === 0) {
-    return 0;
-  }
-
-  const pricing = await loadPricing();
-  const row = pricing.get(input.model);
-
-  if (row) {
-    if (promptTokens > 0 && (row.prompt_cents_per_million_tokens === null || row.prompt_cents_per_million_tokens === undefined)) {
-      return null;
-    }
-    if (completionTokens > 0 && (row.completion_cents_per_million_tokens === null || row.completion_cents_per_million_tokens === undefined)) {
-      return null;
-    }
-    if (embeddingTokens > 0 && (row.embedding_cents_per_million_tokens === null || row.embedding_cents_per_million_tokens === undefined)) {
-      return null;
-    }
-
-    const promptRate = promptTokens > 0 ? toNumber(row.prompt_cents_per_million_tokens) : 0;
-    const completionRate = completionTokens > 0 ? toNumber(row.completion_cents_per_million_tokens) : 0;
-    const embeddingRate = embeddingTokens > 0 ? toNumber(row.embedding_cents_per_million_tokens) : 0;
-
-    const cents =
-      (promptTokens * promptRate) / 1_000_000 +
-      (completionTokens * completionRate) / 1_000_000 +
-      (embeddingTokens * embeddingRate) / 1_000_000;
-
-    return cents;
-  }
-
-  // Fallback to ai_models catalog:
-  // ai_models only has input/output rates. If embeddingTokens > 0, cannot price -> return null.
-  if (embeddingTokens > 0) {
-    return null;
-  }
-
-  const doCatalogo = await precoDoCatalogo(input.model);
-  if (!doCatalogo) return null;
-
-  if (promptTokens > 0 && doCatalogo.prompt === null) {
-    return null;
-  }
-  if (completionTokens > 0 && doCatalogo.completion === null) {
-    return null;
-  }
-
-  const promptRate = promptTokens > 0 ? (doCatalogo.prompt ?? 0) : 0;
-  const completionRate = completionTokens > 0 ? (doCatalogo.completion ?? 0) : 0;
-
   const cents =
     (promptTokens * promptRate) / 1_000_000 +
-    (completionTokens * completionRate) / 1_000_000;
+    (completionTokens * completionRate) / 1_000_000 +
+    (embeddingTokens * embeddingRate) / 1_000_000;
 
-  return cents;
+  return Math.ceil(cents);
 }
 
 /** Test-only: drop the in-memory pricing cache. */

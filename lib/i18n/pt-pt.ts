@@ -37,6 +37,13 @@ const PT_PT: Record<string, string> = {
     "Quem trabalha aqui, com que função e quantas conversas cada pessoa consegue acompanhar.",
   "Quem recebe cada cliente novo, e o que cada atendente enxerga.":
     "Quem recebe cada novo cliente e o que cada membro da receção consegue ver.",
+  Usuário: "Utilizador",
+  "Senha temporária": "Palavra-passe temporária",
+  "Preparando ambiente…": "A preparar ambiente…",
+  "Conversas sintéticas de recepção": "Conversas sintéticas de receção",
+  "Serviços, especialistas e agendamentos": "Serviços, especialistas e marcações",
+  "funciona na recepção de uma clínica dentária": "funciona na receção de uma clínica dentária",
+  "Demonstração dentária sintética": "Demonstração dentária sintética",
 };
 
 export function traduzirPtPt(texto: string): string {

@@ -4,6 +4,7 @@
  * UPDATEs scoped explicitly by `organization_id` resolved from the validated
  * session — no body-derived ids ever).
  */
+import { supportWriteError } from "@/lib/impersonate/support";
 import { loadAuthUser, resolveActiveOrg } from "@/lib/auth/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { OnboardingState } from "@/lib/schemas/onboarding";
@@ -35,6 +36,7 @@ export interface OnboardingCtx {
 export async function requireOnboardingCtx(): Promise<OnboardingCtx> {
   const user = await loadAuthUser();
   if (!user) throw new OnboardingError("auth_required", "Auth required.");
+  if (supportWriteError(user.support)) throw new OnboardingError("forbidden", "Acompanhamento somente leitura ou encerrado.");
   const activeOrg = await resolveActiveOrg(user);
   if (!activeOrg) throw new OnboardingError("no_active_org", "Sem organização ativa.");
   return {
@@ -68,7 +70,7 @@ export async function loadOnboardingState(orgId: string): Promise<{
 export async function patchOnboardingState(
   orgId: string,
   patch: Partial<OnboardingState>,
-  extra?: { display_name?: string; timezone?: string; business_profile_description?: string },
+  extra?: { display_name?: string; timezone?: string },
 ): Promise<void> {
   const admin = createAdminClient();
   const { state } = await loadOnboardingState(orgId);
@@ -76,25 +78,6 @@ export async function patchOnboardingState(
   const update: Record<string, unknown> = { onboarding_state: merged };
   if (extra?.display_name) update.display_name = extra.display_name;
   if (extra?.timezone) update.timezone = extra.timezone;
-
-  if (extra?.business_profile_description !== undefined) {
-    const { data: orgData, error: readErr } = await admin
-      .from("organizations")
-      .select("settings")
-      .eq("id", orgId)
-      .maybeSingle();
-    if (readErr) throw new OnboardingError("db_error", readErr.message);
-    const currentSettings = (orgData?.settings as Record<string, unknown> | null) ?? {};
-    const currentBusinessProfile = (currentSettings.business_profile as Record<string, unknown> | null) ?? {};
-    update.settings = {
-      ...currentSettings,
-      business_profile: {
-        ...currentBusinessProfile,
-        description: extra.business_profile_description ? extra.business_profile_description.trim() : null,
-      },
-    };
-  }
-
   const { error } = await admin.from("organizations").update(update).eq("id", orgId);
   if (error) throw new OnboardingError("db_error", error.message);
 }

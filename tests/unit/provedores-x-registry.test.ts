@@ -1,4 +1,3 @@
-// @vitest-environment node
 /**
  * A LISTA QUE A TELA OFERECE E O REGISTRY QUE EXECUTA SÃO A MESMA LISTA.
  *

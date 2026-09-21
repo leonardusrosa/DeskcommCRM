@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { createAdminClient } from "@/lib/supabase/admin";
 
 export interface DemoCleanupResult {
   organizationsDeleted: number;
@@ -6,7 +6,7 @@ export interface DemoCleanupResult {
 }
 
 export async function cleanupExpiredDemos(
-  admin: SupabaseClient,
+  admin: ReturnType<typeof createAdminClient>,
   now: Date = new Date(),
 ): Promise<DemoCleanupResult> {
   const { data: expired, error } = await admin

@@ -1,249 +1,237 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { CheckCircle2, AlertCircle, RefreshCw, Cpu } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { useT } from "@/hooks/i18n/useT";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import type { ProvedorSuportado } from "@/lib/ai/pontos/provedores";
-import { ROTULOS_DE_RACIOCINIO, type NivelDeRaciocinio } from "@/lib/ai/raciocinio/tipos";
-import { TrocarCerebroDialog, type ModeloOption } from "./_trocar-cerebro-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { salvarChaveDaIa } from "@/app/actions/onboarding/chaveDaIa";
+import { PROVEDORES } from "@/lib/ai/pontos/provedores";
 
+/**
+ * "O CÉREBRO DELE" — a chave, medida e testada onde ela passa a importar.
+ *
+ * Duas coisas que o wizard não fazia e que custam caro no primeiro dia:
+ *
+ * 1. **Sem chave, era um beco.** O passo 1 mede e escreve "Falta a chave da
+ *    inteligência artificial" — diagnóstico certo, saída nenhuma. Aqui a pessoa
+ *    cola a chave no lugar onde ela é usada, um clique antes de o funcionário
+ *    nascer com ela.
+ *
+ * 2. **"Validada" nunca significou "funciona".** O validador de chave bate num
+ *    endpoint de LISTAGEM, que responde 200 com a conta zerada — então o selo
+ *    verde prova que a chave existe, nunca que ela vai gerar uma resposta. Quem
+ *    instalava, via "Validada" e recebia erro na primeira conversa não tinha
+ *    onde olhar. A única coisa que prova saldo é uma geração, e é isso que
+ *    `?provar=1` faz.
+ *
+ * ⚠️ A PROVA RODA NO CLIENTE, DEPOIS DE MONTAR — não no render do servidor. Ela
+ * é uma ida ao provedor com timeout de 8 segundos: no render, o passo inteiro
+ * ficaria em branco esperando por ela, e uma tela lenta é o que se lê como
+ * produto quebrado.
+ */
 export interface EstadoDaChave {
-  origem: "org" | "nenhuma";
+  origem: "org" | "instalacao" | "nenhuma";
   provedor: string;
-  modelo: string;
-  raciocinio?: string | null;
-  suportaRaciocinio?: boolean;
   rotulo: string;
+  /** Só os últimos dígitos — o resto nunca sai do banco cifrado. */
   final: string | null;
 }
 
 type Prova =
   | { estado: "conferindo" }
   | { estado: "ok" }
-  | {
-      estado: "problema";
-      codigo?: string;
-      titulo: string;
-      mensagem: string;
-      acaoSugerida?: string;
-    }
+  | { estado: "problema"; mensagem: string }
   | { estado: "nao_deu" };
 
-interface Props {
-  inicial: EstadoDaChave;
-  provedores: readonly ProvedorSuportado[];
-  modelos: ModeloOption[];
-  chavesDaOrg: Record<string, string>; // provider -> last4
-}
-
-export function InteligenciaDele({
-  inicial,
-  provedores,
-  modelos,
-  chavesDaOrg: chavesIniciais,
-}: Props) {
-  const [chave, setChave] = useState<EstadoDaChave>(inicial);
-  const [chavesDaOrg, setChavesDaOrg] = useState<Record<string, string>>(chavesIniciais);
+export function InteligenciaDele({ inicial }: { inicial: EstadoDaChave }) {
+  const t = useT();
+  const [chave, setChave] = useState(inicial);
   const [prova, setProva] = useState<Prova | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [provedor, setProvedor] = useState(inicial.provedor);
 
   const temChave = chave.origem !== "nenhuma";
 
-  const modeloAtualObj = useMemo(() => {
-    return modelos.find((m) => m.provider === chave.provedor && m.model_id === chave.modelo);
-  }, [modelos, chave.provedor, chave.modelo]);
-
-  const isFreeModel = Boolean(chave.modelo && chave.modelo.toLowerCase().endsWith("-free"));
-  const suportaRaciocinio = Boolean(modeloAtualObj?.supports_reasoning ?? chave.suportaRaciocinio);
-
-  const rotuloRaciocinio = useMemo(() => {
-    if (!suportaRaciocinio) return null;
-    if (!chave.raciocinio || chave.raciocinio === "auto") return "Automático";
-    const r = ROTULOS_DE_RACIOCINIO[chave.raciocinio as NivelDeRaciocinio];
-    return r ? r.rotulo.split(" (")[0] : chave.raciocinio;
-  }, [suportaRaciocinio, chave.raciocinio]);
-
-  const conferirConexao = async () => {
-    if (!temChave) return;
-    setProva({ estado: "conferindo" });
-    try {
-      const r = await fetch("/api/v1/system/instalacao?provar=1");
-      const corpo = r.ok ? await r.json() : null;
-      const p = corpo?.data?.prova as
-        | {
-            feita: boolean;
-            ok?: boolean;
-            codigo?: string;
-            titulo?: string;
-            mensagem?: string;
-            acaoSugerida?: string;
-          }
-        | undefined;
-
-      if (!p || !p.feita) return setProva({ estado: "nao_deu" });
-      if (p.ok) return setProva({ estado: "ok" });
-      setProva({
-        estado: "problema",
-        codigo: p.codigo,
-        titulo: p.titulo || "Aviso do Provedor",
-        mensagem: p.mensagem || "Não foi possível validar o crédito do modelo selecionado.",
-        acaoSugerida: p.acaoSugerida,
-      });
-    } catch {
-      setProva({ estado: "nao_deu" });
-    }
-  };
-
   useEffect(() => {
     if (!temChave) return;
-    void conferirConexao();
-  }, [chave.provedor, chave.modelo, temChave]);
+    let vivo = true;
+    let tentativas = 0;
 
-  return (
-    <section className="rounded-lg border bg-card p-5 text-card-foreground shadow-sm">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-2 flex-1">
-          <div className="flex items-center gap-2">
-            <Cpu className="h-5 w-5 text-primary" />
-            <h3 className="text-base font-semibold leading-none tracking-tight">
-              O cérebro dele
-            </h3>
+    async function conferir(): Promise<void> {
+      setProva({ estado: "conferindo" });
+      try {
+        const r = await fetch("/api/v1/system/instalacao?provar=1");
+        const corpo = r.ok ? await r.json() : null;
+        if (!vivo) return;
+        const p = corpo?.data?.prova as
+          | { feita: boolean; ok?: boolean; mensagem?: string; aindaVerificando?: boolean }
+          | undefined;
+
+        // A chave recém-colada ainda está sendo validada em segundo plano, e
+        // `loadCredential` recusa credencial não validada. Medido percorrendo o
+        // wizard: quem colava a chave e recebia a resposta no mesmo segundo lia
+        // "não consegui testar o crédito" sobre uma chave que funcionava.
+        // Esperar e perguntar de novo é a resposta certa — desistir na primeira
+        // manda a pessoa desconfiar do que está correto.
+        if (p?.aindaVerificando && tentativas < 4) {
+          tentativas += 1;
+          setTimeout(() => void (vivo && conferir()), 2000);
+          return;
+        }
+
+        // "Não deu para conferir" é resposta distinta de "está com problema", e
+        // colapsar as duas mandaria a pessoa trocar uma chave que está certa.
+        if (!p || !p.feita) return setProva({ estado: "nao_deu" });
+        if (p.ok) return setProva({ estado: "ok" });
+        setProva({ estado: "problema", mensagem: p.mensagem ?? "" });
+      } catch {
+        if (vivo) setProva({ estado: "nao_deu" });
+      }
+    }
+
+    void conferir();
+    return () => {
+      vivo = false;
+    };
+  }, [temChave]);
+
+  if (!temChave) {
+    return (
+      <section className="space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-5">
+        <div>
+          <h3 className="text-sm font-medium">{t("Ele ainda não tem cérebro")}</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t(
+              "Seu funcionário pensa com a inteligência artificial que você contratar. A instalação não trouxe nenhuma chave — cole a sua aqui e ele já nasce funcionando.",
+            )}
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,180px)_1fr]">
+          <div className="space-y-1.5">
+            <Label htmlFor="provedor_da_ia">{t("Qual você contratou")}</Label>
+            <select
+              id="provedor_da_ia"
+              value={provedor}
+              onChange={(e) => setProvedor(e.target.value)}
+              className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+            >
+              {PROVEDORES.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.rotulo}
+                </option>
+              ))}
+            </select>
           </div>
-
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium">
-                {chave.rotulo || chave.provedor}
-              </span>
-              {chave.final ? (
-                <span className="text-xs text-muted-foreground">(final ••••{chave.final})</span>
-              ) : null}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span>
-                modelo: <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">{chave.modelo || "padrão"}</code>
-              </span>
-              {isFreeModel && (
-                <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0">
-                  Free
-                </Badge>
-              )}
-              {suportaRaciocinio && (
-                <>
-                  <span>•</span>
-                  <span>
-                    raciocínio: <strong className="font-medium text-foreground">{rotuloRaciocinio}</strong>
-                  </span>
-                </>
-              )}
-              <span>•</span>
-              <Badge variant="outline" className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">
-                {chave.final ? `Chave ativa (••••${chave.final})` : "Chave da empresa ativa"}
-              </Badge>
-            </div>
-          </div>
-
-          <div className="pt-1 text-xs">
-            {prova?.estado === "conferindo" && (
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                Conferindo se a chave tem crédito…
-              </span>
-            )}
-            {(prova?.estado === "ok" || prova === null) && (
-              <span className="flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                ✓ conexão funcionando
-              </span>
-            )}
-            {prova?.estado === "nao_deu" && (
-              <span className="text-muted-foreground">
-                Não foi possível testar o crédito agora.
-              </span>
-            )}
-            {prova?.estado === "problema" && (
-              <div className="mt-2.5 rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
-                <div className="flex items-start gap-2.5">
-                  <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                  <div className="space-y-1.5 flex-1">
-                    <div className="font-semibold text-amber-900 dark:text-amber-200">
-                      {prova.titulo}
-                    </div>
-                    <p className="text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
-                      {prova.mensagem}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={conferirConexao}
-                        className="h-6 px-2 text-[11px] bg-background/80 hover:bg-background"
-                      >
-                        <RefreshCw className="h-3 w-3 mr-1" />
-                        Tentar novamente
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setDialogOpen(true)}
-                        className="h-6 px-2 text-[11px]"
-                      >
-                        Trocar modelo
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+          <div className="space-y-1.5">
+            <Label htmlFor="api_key_da_ia">{t("A chave")}</Label>
+            <Input
+              id="api_key_da_ia"
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder={t("Cole aqui a chave que a empresa de IA te deu")}
+              autoComplete="off"
+            />
           </div>
         </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setDialogOpen(true)}
-          className="self-start shrink-0"
-        >
-          Trocar cérebro
-        </Button>
-      </div>
+        {/*
+          A escolha vale para a EMPRESA, não só para este atendente — e quem lê
+          a tela precisa saber disso antes de escolher, não depois. É a mesma
+          decisão que o passo grava em `organizations.settings.llm`.
+        */}
+        <p className="text-xs text-muted-foreground">
+          {t(
+            "Esta escolha passa a valer para a empresa inteira: é esta inteligência que atende seus clientes.",
+          )}
+        </p>
 
-      <TrocarCerebroDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        currentProvider={chave.provedor}
-        currentModel={chave.modelo}
-        currentReasoningEffort={chave.raciocinio}
-        provedores={provedores}
-        modelos={modelos}
-        chavesDaOrg={chavesDaOrg}
-        onSuccess={(resultado) => {
-          setChave({
-            origem: resultado.origem,
-            provedor: resultado.provedor,
-            modelo: resultado.modelo,
-            raciocinio: resultado.raciocinio,
-            rotulo: resultado.rotulo,
-            final: resultado.final,
-          });
-          if (resultado.final) {
-            setChavesDaOrg((prev) => ({
-              ...prev,
-              [resultado.provedor]: resultado.final!,
-            }));
-          }
-          setProva({ estado: "conferindo" });
-          setTimeout(() => {
-            void conferirConexao();
-          }, 1000);
-        }}
-      />
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            size="sm"
+            disabled={salvando || apiKey.trim().length < 8}
+            onClick={async () => {
+              setSalvando(true);
+              const fd = new FormData();
+              fd.set("provider", provedor);
+              fd.set("api_key", apiKey);
+              const r = await salvarChaveDaIa(fd);
+              setSalvando(false);
+              if (!r.ok) return toast.error(t(r.erro));
+              // A chave sai da memória da tela no mesmo instante em que é aceita.
+              setApiKey("");
+              setChave({
+                origem: "org",
+                provedor,
+                rotulo: PROVEDORES.find((p) => p.id === provedor)?.rotulo ?? provedor,
+                final: r.final,
+              });
+              // A escolha acima passa a valer para a empresa inteira; quando ela
+              // NÃO passou a valer, a tela diz por quê. Dar "Chave guardada" e
+              // ficar calado sobre o padrão faria a pessoa acreditar que a IA da
+              // empresa mudou quando não mudou — e o sintoma só apareceria na
+              // hora de publicar.
+              if (r.aviso === "sem_modelo_no_catalogo") {
+                toast.warning(
+                  t(
+                    "A chave foi guardada. A lista de modelos desta empresa de IA ainda não chegou nesta instalação — por enquanto a IA da empresa continua a anterior. Não precisa colar a chave de novo.",
+                  ),
+                );
+              } else if (r.aviso) {
+                toast.warning(
+                  t(
+                    "A chave foi guardada, mas não consegui mudar a IA da empresa agora. Dá para trocar em IA › Provedores.",
+                  ),
+                );
+              } else {
+                toast.success(t("Chave guardada. Agora ele pode pensar."));
+              }
+            }}
+          >
+            {salvando ? t("Guardando...") : t("Guardar a chave")}
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            {t("Ela é guardada cifrada — nem nós conseguimos lê-la depois.")}
+          </span>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="space-y-1 rounded-lg border bg-background p-5">
+      <h3 className="text-sm font-medium">
+        {t("O cérebro dele:")} {chave.rotulo}
+        {chave.final ? (
+          <span className="ml-1 font-normal text-muted-foreground">
+            ({t("final")} {chave.final})
+          </span>
+        ) : null}
+      </h3>
+      <p className="text-sm text-muted-foreground">
+        {prova?.estado === "conferindo" && t("Conferindo se a chave tem crédito…")}
+        {prova?.estado === "ok" && t("Testei agora: a chave respondeu e tem crédito.")}
+        {prova?.estado === "problema" && (
+          <>
+            {t("A chave foi aceita, mas o teste não passou:")}{" "}
+            <span className="text-amber-700 dark:text-amber-500">{prova.mensagem}</span>.{" "}
+            {t(
+              "Se for falta de crédito, adicione saldo na conta da empresa de IA — sem isso ele não responde a nenhum cliente.",
+            )}
+          </>
+        )}
+        {prova?.estado === "nao_deu" &&
+          t(
+            "Não consegui testar o crédito agora. Dá para seguir — mas confira o saldo na conta da empresa de IA antes de confiar nele.",
+          )}
+        {prova === null && t("Pronta para uso.")}
+      </p>
     </section>
   );
 }

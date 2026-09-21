@@ -16,7 +16,7 @@ export const spainDentalProfile: DentalDemoTemplate = {
     description: "Demostración de alto nivel para clínicas dentales privadas en España: captación digital, propuestas de tratamientos estéticos e implantología premium.",
     keyHighlights: [
       "Inbox WhatsApp con conversaciones sintéticas para mostrar triaje y seguimiento",
-      "Pipeline de ventas configurado para optimizar presupuestos y conversión de primeras visitas",
+      "Embudo de ventas configurado para optimizar presupuestos y conversión de primeras visitas",
       "Agenda con doctores especializados y trazabilidad de citas pasadas y futuras",
     ],
   },

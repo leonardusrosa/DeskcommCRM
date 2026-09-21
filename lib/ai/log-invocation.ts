@@ -47,7 +47,7 @@ export interface LogInvocationInput {
   prompt_tokens: number;
   completion_tokens: number;
   latency_ms: number;
-  cost_cents: number | null;
+  cost_cents: number;
   finish_reason?: string | null;
   citations?: Array<Record<string, unknown>>;
   error_payload?: Record<string, unknown> | null;
@@ -69,14 +69,6 @@ export function logInvocation(row: LogInvocationInput): void {
         // invocation_kind → purpose, prompt/completion → input/output.
         const { error } = await admin.from("llm_calls").insert({
           organization_id: row.organization_id,
-          conversation_id:
-            row.conversation_id === null || row.conversation_id === undefined || row.conversation_id.trim() === ""
-              ? null
-              : row.conversation_id,
-          message_id:
-            row.message_id === null || row.message_id === undefined || row.message_id.trim() === ""
-              ? null
-              : row.message_id,
           // NORMALIZA AQUI, e não no chamador (issue #160). O tipo já diz
           // `string | null`, mas `string` aceita `""` — e foi exatamente `?? ""`
           // que fez a tabela ficar vazia numa VPS com tráfego real, porque o
@@ -167,8 +159,6 @@ export function providerDoModelo(model: string): string {
   if (m.startsWith("anthropic/") || m.startsWith("claude")) return "anthropic";
   if (m.startsWith("openai/") || m.startsWith("gpt") || m.startsWith("text-embedding")) return "openai";
   if (m.startsWith("google/") || m.startsWith("gemini")) return "google";
-  if (m.startsWith("deepseek/") || m.startsWith("deepseek")) return "deepseek";
-  if (m.startsWith("opencode_zen/") || m.startsWith("zen/") || m.startsWith("mimo") || m.startsWith("nemotron")) return "opencode_zen";
   if (m.includes("/")) return "openrouter";
   return "desconhecido";
 }

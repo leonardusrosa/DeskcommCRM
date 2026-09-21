@@ -1,4 +1,3 @@
-import { buildAgentSystemContext, type BusinessProfile } from '@/lib/ai/context/business-context';
 /**
  * Config do agente por PONTEIRO PUBLICADO (Fase 2B da fusão) — a tela
  * app/app/ai/agents/[id] é a fonte de verdade da config do agente.
@@ -19,6 +18,9 @@ import type pg from 'pg';
 import { lerJanelaDeAtendimento, type JanelaDeAtendimento } from './janela-de-atendimento';
 
 export interface PublishedAgentConfig {
+  operationMode?: 'automatic' | 'assisted';
+  pausedAt?: string | null;
+  operationRevision?: string;
   agentId: string;
   versionId: string;
   agentName: string;
@@ -39,9 +41,20 @@ export interface PublishedAgentConfig {
   casesEnabled: boolean;
   /** tool_ids do catálogo MCP habilitadas na tela (2B-tools). */
   toolIds: string[];
-  /** KB ativa do agente (ai_agents.active_kb_version_id) — null = sem RAG. */
+  /**
+   * Materiais que ESTE agente consulta (`ai_agent_versions.knowledge_source_ids`).
+   * Vazio = NENHUM: a ferramenta de busca some do turno.
+   */
+  knowledgeSourceIds: string[];
+  /**
+   * LEGADO: a KB ativa do agente (`ai_agents.active_kb_version_id`).
+   *
+   * Só é usada quando `knowledgeSourceIds` vem vazio — o clone que ainda não
+   * aplicou a 0181. A direção segura aqui é continuar respondendo com o acervo
+   * antigo em vez de emudecer a busca por causa de um schema desatualizado.
+   */
   activeKbVersionId: string | null;
-  /** knobs de RAG do ai_agents.config (defaults do guardrails-schema: 5 / 0.72). */
+  /** knobs de RAG do ai_agents.config (defaults calibrados na 0097: 5 / 0.40). */
   ragTopK: number;
   ragSimilarityThreshold: number;
   /**
@@ -78,6 +91,9 @@ export interface PublishedAgentConfig {
 }
 
 interface Row {
+  operation_mode: 'automatic' | 'assisted';
+  paused_at: string | null;
+  operation_revision: string;
   agent_id: string;
   version_id: string;
   agent_name: string;
@@ -101,16 +117,13 @@ interface Row {
   operator_model: string | null;
   operator_tool_ids: string[] | null;
   pipeline_ids: string[] | null;
+  knowledge_source_ids: string[] | null;
   trigger_config: unknown;
   version_created_by: string | null;
   agent_created_by: string | null;
-  org_display_name?: string | null;
-  org_timezone?: string | null;
-  org_settings?: Record<string, unknown> | null;
-  org_onboarding_state?: Record<string, unknown> | null;
 }
 
-const SELECT_AGENT_CONFIG_COLUMNS = `a.id as agent_id,
+const SELECT_AGENT_CONFIG_COLUMNS = `a.operation_mode,a.paused_at,a.operation_revision::text,a.id as agent_id,
             v.id as version_id,
             a.name as agent_name,
             v.system_prompt,
@@ -133,53 +146,58 @@ const SELECT_AGENT_CONFIG_COLUMNS = `a.id as agent_id,
             v.operator_model,
             v.operator_tool_ids,
             v.pipeline_ids,
+            v.knowledge_source_ids,
             v.trigger_config,
             v.created_by as version_created_by,
-            a.created_by as agent_created_by,
-            o.display_name as org_display_name,
-            o.timezone as org_timezone,
-            o.settings as org_settings,
-            o.onboarding_state as org_onboarding_state`;
+            a.created_by as agent_created_by`;
 
 /** Mapeamento Row (snake_case do banco) → PublishedAgentConfig, compartilhado
  * pelas duas variantes de loader (por channel_session e por agent id). */
 function mapAgentConfigRow(r: Row): PublishedAgentConfig {
   const cfg = (r.config ?? {}) as { rag_top_k?: unknown; rag_similarity_threshold?: unknown };
   const ragTopK =
-    typeof cfg.rag_top_k === 'number' && Number.isInteger(cfg.rag_top_k) && cfg.rag_top_k >= 1 && cfg.rag_top_k <= 20
+    typeof cfg.rag_top_k === 'number' &&
+    Number.isInteger(cfg.rag_top_k) &&
+    cfg.rag_top_k >= 1 &&
+    cfg.rag_top_k <= 20
       ? cfg.rag_top_k
       : 5;
   const ragSimilarityThreshold =
-    typeof cfg.rag_similarity_threshold === 'number' && cfg.rag_similarity_threshold >= 0 && cfg.rag_similarity_threshold <= 1
+    typeof cfg.rag_similarity_threshold === 'number' &&
+    cfg.rag_similarity_threshold >= 0 &&
+    cfg.rag_similarity_threshold <= 1
       ? cfg.rag_similarity_threshold
-      : 0.72;
-
-  const systemPrompt = buildAgentSystemContext({
-    displayName: r.org_display_name,
-    timezone: r.org_timezone,
-    businessProfile: (r.org_settings as { business_profile?: BusinessProfile } | null)?.business_profile,
-    onboardingOQueFaz: (r.org_onboarding_state as { welcome?: { o_que_faz?: string } } | null)?.welcome?.o_que_faz,
-    agentInstructions: r.system_prompt,
-  });
+      : // 0.40 e nao 0.72: o valor foi CALIBRADO com medicao na migration 0097 (pergunta literal 0.849, parafrase 0.49-0.65, irrelevante 0.27).
+        // Com 0.72 toda parafrase — que e como o cliente escreve — era descartada, e o RAG parecia quebrado funcionando.
+        // O banco moveu o default; estes tres sitios de codigo ficaram para tras e venciam o banco, porque quem corta pelo limiar e o TypeScript.
+        0.4;
 
   return {
+    operationMode: r.operation_mode,
+    pausedAt: r.paused_at,
+    operationRevision: r.operation_revision,
     agentId: r.agent_id,
     versionId: r.version_id,
     agentName: r.agent_name,
-    systemPrompt,
+    systemPrompt: r.system_prompt,
     provider: r.provider,
     model: r.model,
     credentialId: r.credential_id,
     maxSteps: r.max_steps,
     historyMessageWindow: r.history_message_window,
     historyTokenWindow: r.history_token_window,
-    handoffKeywords: (r.handoff_keywords ?? []).map((k) => k.toLowerCase().trim()).filter((k) => k !== ''),
+    handoffKeywords: (r.handoff_keywords ?? [])
+      .map((k) => k.toLowerCase().trim())
+      .filter((k) => k !== ''),
     handoffToolEnabled: r.handoff_tool_enabled,
     splitMessages: r.split_messages,
     splitMaxChars: r.split_max_chars,
     multimodalInput: r.multimodal_input,
     casesEnabled: r.cases_enabled,
     toolIds: r.tool_ids ?? [],
+    // `?? []` cobre o clone sem a 0181: sem a coluna, o agente cai no ponteiro
+    // legado abaixo em vez de ficar sem material nenhum.
+    knowledgeSourceIds: r.knowledge_source_ids ?? [],
     activeKbVersionId: r.active_kb_version_id,
     ragTopK,
     ragSimilarityThreshold,
@@ -211,7 +229,6 @@ export async function loadPublishedAgentConfig(
     `select ${SELECT_AGENT_CONFIG_COLUMNS}
      from ai_agents a
      join ai_agent_versions v on v.id = a.published_version_id
-     left join organizations o on o.id = a.organization_id
      where a.organization_id = $1
        and a.archived_at is null
        -- is_active é semântica do rag_bot legado; para mcp_agent "ativo" =
@@ -243,7 +260,6 @@ export async function loadPublishedAgentConfigById(
     `select ${SELECT_AGENT_CONFIG_COLUMNS}
      from ai_agents a
      join ai_agent_versions v on v.id = a.published_version_id
-     left join organizations o on o.id = a.organization_id
      where a.organization_id = $1
        and a.archived_at is null
        and v.status = 'published'
@@ -264,4 +280,36 @@ export function matchesHandoffKeyword(signal: string, keywords: readonly string[
   if (keywords.length === 0) return false;
   const lower = signal.toLowerCase();
   return keywords.some((k) => lower.includes(k));
+}
+
+/** Exact authenticated version, including a draft: uses the production projection. */
+export async function loadAgentVersionConfig(
+  db: pg.Pool,
+  organizationId: string,
+  agentId: string,
+  versionId: string,
+): Promise<PublishedAgentConfig | null> {
+  const { rows } = await db.query<Row>(
+    `select ${SELECT_AGENT_CONFIG_COLUMNS} from ai_agents a
+ join ai_agent_versions v on v.organization_id=a.organization_id and v.agent_id=a.id
+ where a.organization_id=$1 and a.id=$2 and v.id=$3 and a.archived_at is null`,
+    [organizationId, agentId, versionId],
+  );
+  return rows[0] ? mapAgentConfigRow(rows[0]) : null;
+}
+
+/** Read-only selection for assistance: honor an existing conversation owner. */
+export async function loadConversationAgentConfig(
+  pool: pg.Pool,
+  organizationId: string,
+  conversationId: string,
+  channelId: string,
+) {
+  const { rows } = await pool.query<{ active_ai_agent_id: string | null }>(
+    'select active_ai_agent_id from conversations where organization_id=$1 and id=$2 and channel_session_id=$3',
+    [organizationId, conversationId, channelId],
+  );
+  return rows[0]?.active_ai_agent_id
+    ? loadPublishedAgentConfigById(pool, organizationId, rows[0].active_ai_agent_id)
+    : loadPublishedAgentConfig(pool, organizationId, channelId);
 }

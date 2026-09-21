@@ -1,5 +1,3 @@
-import { buildAgentSystemContext, type BusinessProfile } from "@/lib/ai/context/business-context";
-import { montarOpcoesDeRaciocinio } from "@/lib/ai/raciocinio/adapter";
 /**
  * @deprecated Fase 0 da convergência (spec 2026-07-23): fora do caminho quente.
  * O runtime canônico é lib/agent-engine (workers/agent-worker). Remoção física
@@ -33,9 +31,12 @@ import { generateText, stepCountIs, type LanguageModel, type StopCondition, type
 // Repetir a URL aqui criaria dois lugares para consertar quando ela mudar.
 import {
   cabecalhosDeAtribuicaoOpenRouter,
+  DEEPSEEK_ENDPOINT,
   OPENROUTER_ENDPOINT,
 } from "@/lib/agent-engine/edge/llm/providers";
 import { CredentialUnavailableError, loadCredential } from "@/lib/ai/credentials";
+import { decidirElegibilidadeDaConversaViaSupabase } from "@/lib/ai/elegibilidade/consulta-supabase";
+import { ttlDaAutorizacaoMs } from "@/lib/ai/elegibilidade/gate";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { audit } from "@/lib/audit";
 import type { McpAuthResult } from "@/lib/mcp/auth";
@@ -72,7 +73,7 @@ export interface RunAgentResult {
   tool_calls?: ReturnType<typeof serializeSteps>;
   tokens_in?: number;
   tokens_out?: number;
-  cost_cents?: number | null;
+  cost_cents?: number;
   latency_ms?: number;
   steps_count?: number;
   abort_reason?: string;
@@ -155,14 +156,9 @@ function buildSentinelRegex(keywords: string[]): RegExp | null {
  * lá não existe faria o ensaio passar e a mensagem real falhar.
  */
 export function chaveDePlataforma(provider: string): string | null {
-  const map: Record<string, string> = {
-    anthropic: "ANTHROPIC_API_KEY",
-    openai: "OPENAI_API_KEY",
-    openrouter: "OPENROUTER_API_KEY",
-    opencode_zen: "OPENCODE_ZEN_API_KEY",
-    deepseek: "DEEPSEEK_API_KEY",
-  };
-  const nome = map[provider];
+  const nome = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", openrouter: "OPENROUTER_API_KEY" }[
+    provider
+  ];
   if (!nome) return null;
   const v = (process.env[nome] ?? "").trim();
   return v === "" ? null : v;
@@ -176,29 +172,23 @@ export function buildModel(provider: string, apiKey: string, modelId: string): L
       return createOpenAI({ apiKey })(modelId);
     case "google":
       return createGoogleGenerativeAI({ apiKey })(modelId);
+    // O ensaio precisa alcançar o mesmo provedor que o turno real alcança.
+    // Sem este caso, o dono que instalou pela opção [1] do instalador publica
+    // o agente, clica em "Teste" para conferir antes de confiar, e recebe
+    // `unsupported_provider` — enquanto a mensagem de verdade seria respondida
+    // normalmente pelo worker. Erro no ensaio lê-se como produto quebrado.
     case "openrouter":
       return createOpenAI({
         apiKey,
         baseURL: OPENROUTER_ENDPOINT,
         headers: cabecalhosDeAtribuicaoOpenRouter(),
       })(modelId);
-    case "opencode_zen": {
-      const zenModel = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
-      const isGpt = zenModel.startsWith("gpt-");
-      const openai = createOpenAI({
-        apiKey,
-        baseURL: process.env.OPENCODE_ZEN_BASE_URL || "https://opencode.ai/zen/v1",
-        headers: { "User-Agent": "DeskcommCRM/1.0" },
-      });
-      return isGpt ? openai(zenModel) : openai.chat(zenModel);
-    }
-    case "deepseek": {
-      const model = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
-      return createOpenAI({
-        apiKey,
-        baseURL: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com",
-      })(model);
-    }
+    // Mesma fábrica OpenAI-compatível que o registry de produção usa. Sem este
+    // caso, o dono que publicou em DeepSeek receberia `unsupported_provider` no
+    // ensaio enquanto o worker responderia a mensagem real — ensaio mais
+    // rígido que a produção mente sobre o que está quebrado.
+    case "deepseek":
+      return createOpenAI({ apiKey, baseURL: DEEPSEEK_ENDPOINT })(modelId);
     default:
       throw new Error(`unsupported_provider: ${provider}`);
   }
@@ -280,7 +270,15 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     const { data: versionRaw } = await admin
       .from("ai_agent_versions")
       .select(
-        "id, organization_id, agent_id, system_prompt, provider, model, credential_id, tool_ids, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, created_by",
+        // `pipeline_ids` e `knowledge_source_ids` ENTRAM no SELECT.
+        //
+        // A linha 445 lia `version.pipeline_ids` de um objeto que este SELECT
+        // nunca trouxe: o `?? []` do call site absorvia o `undefined` e o escopo
+        // ficava SEMPRE vazio neste runtime — a marcação da tela existia e não
+        // valia aqui. Coluna lida que o SELECT não pede é o defeito que
+        // `agent-version-columns-drift.test.ts` existe para pegar nas cópias
+        // vigiadas; esta não é uma delas.
+        "id, organization_id, agent_id, system_prompt, provider, model, credential_id, tool_ids, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, created_by, pipeline_ids, knowledge_source_ids",
       )
       .eq("id", run.agent_version_id)
       .eq("organization_id", run.organization_id)
@@ -289,30 +287,6 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     if (!version) {
       return await failRun(run, "version_not_found", "agent version missing", startedAt);
     }
-
-    // Load organization facts for canonical business profile injection.
-    const { data: orgRow, error: orgErr } = await admin
-      .from("organizations")
-      .select("display_name, timezone, settings, onboarding_state")
-      .eq("id", run.organization_id)
-      .maybeSingle();
-
-    if (orgErr || !orgRow) {
-      return await failRun(
-        run,
-        "org_not_found",
-        `organization load failed: ${orgErr?.message ?? "missing organization"}`,
-        startedAt,
-      );
-    }
-
-    const system = buildAgentSystemContext({
-      displayName: orgRow.display_name,
-      timezone: orgRow.timezone,
-      businessProfile: (orgRow.settings as { business_profile?: BusinessProfile } | null)?.business_profile,
-      onboardingOQueFaz: (orgRow.onboarding_state as { welcome?: { o_que_faz?: string } } | null)?.welcome?.o_que_faz,
-      agentInstructions: version.system_prompt,
-    });
 
     const { data: agentRaw } = await admin
       .from("ai_agents")
@@ -344,33 +318,16 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
         return await failRun(run, `credential_${reason}`, "credential unavailable", startedAt);
       }
     } else {
-      const { data: credsOrg } = await admin
-        .from("ai_provider_credentials")
-        .select("id")
-        .eq("organization_id", run.organization_id)
-        .eq("provider", version.provider)
-        .eq("is_active", true)
-        .not("validated_at", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(1);
-
-      const credId = credsOrg?.[0]?.id as string | undefined;
-      if (credId) {
-        try {
-          const credential = await loadCredential(credId, run.organization_id);
-          credentialApiKey = credential.apiKey;
-        } catch (err) {
-          const reason = err instanceof CredentialUnavailableError ? err.reason : "decrypt_failed";
-          return await failRun(run, `credential_${reason}`, "credential unavailable", startedAt);
-        }
-      } else {
+      const daInstalacao = chaveDePlataforma(version.provider);
+      if (!daInstalacao) {
         return await failRun(
           run,
           "credential_invalid",
-          `Sem credencial para ${version.provider}: cadastre a chave da sua empresa em IA › Credenciais.`,
+          `sem chave para ${version.provider}: cadastre em IA › Credenciais ou configure a chave desta instalação`,
           startedAt,
         );
       }
+      credentialApiKey = daInstalacao;
     }
 
     // 5) Resolve inbound text + dispatch context.
@@ -420,6 +377,30 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
           waIdentity: conv.contacts?.wa_identity,
           waLid: conv.contacts?.wa_lid,
         });
+      }
+
+      // GATE DE ELEGIBILIDADE — este runtime legado (@deprecated, hoje só o
+      // dispatcher aposentado o alcança com envio real) TAMBÉM não pode
+      // responder uma conversa que uma origem elegível não autorizou. Mesma
+      // regra pura do drain/turno. Fail-closed: erro de leitura → falha o run
+      // antes de qualquer custo de LLM.
+      try {
+        const elegib = await decidirElegibilidadeDaConversaViaSupabase(admin, {
+          organizationId: run.organization_id,
+          conversationId: run.conversation_id,
+          agora: new Date(),
+          ttlMs: ttlDaAutorizacaoMs(process.env),
+        });
+        if (elegib !== null && !elegib.permite) {
+          return await failRun(run, "nao_elegivel_para_ia", `elegibilidade: ${elegib.motivo}`, startedAt);
+        }
+      } catch (err) {
+        return await failRun(
+          run,
+          "nao_elegivel_para_ia",
+          `elegibilidade indeterminada: ${err instanceof Error ? err.message.slice(0, 120) : "erro"}`,
+          startedAt,
+        );
       }
     }
 
@@ -539,11 +520,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
       });
-      if (cost === null && version.cost_budget_cents > 0 && totalTokens > 0) {
-        abortReason = "cost_unavailable";
-        return true;
-      }
-      if (cost !== null && cost > version.cost_budget_cents) {
+      if (cost > version.cost_budget_cents) {
         abortReason = "cost_budget_exceeded";
         return true;
       }
@@ -556,16 +533,12 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       { role: "user" as const, content: inboundBody },
     ];
 
-    const effort = (version as { reasoning_effort?: string }).reasoning_effort;
-    const opcoesRaciocinio = montarOpcoesDeRaciocinio(version.provider, version.model, effort);
-
     const result = await generateText({
       model,
-      system,
+      system: version.system_prompt,
       messages,
       tools,
       stopWhen: [stepCountIs(version.max_steps), budgetGuard],
-      ...(opcoesRaciocinio.providerOptions ? { providerOptions: opcoesRaciocinio.providerOptions as never } : {}),
     });
 
     // 12) Aggregate metrics.

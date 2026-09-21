@@ -32,7 +32,7 @@
  *   escrevemos.
  * - `recurrence` — recorrência está fora do escopo (`03-DECISOES.md` §5). Nós
  *   lemos instância expandida; nunca criamos série.
- * - `conferenceData` / `conferenceDataVersion` / `sendUpdates` — não são corpo
+ * - `conferenceDataVersion` / `sendUpdates` — não são corpo
  *   de evento, são parâmetros da requisição. Moram na chamada, não aqui.
  * - `guestsCanSeeOtherGuests` — o padrão do Google já é `true`. Mandar o padrão
  *   é payload sem decisão dentro.
@@ -77,19 +77,65 @@ export type TipoDeLocal = "in_person" | "phone" | "whatsapp" | "video_link" | "g
  * Quem participa do compromisso, já resolvido pelo chamador.
  *
  * O agendamento guarda `owner_user_id` e `contact_id` — ids, não e-mails. Quem
- * traduz ids em endereços é a rota; esta camada recebe a lista pronta, e por
- * isso continua pura.
+ * traduz ids em endereços é o executor de sincronização; esta camada recebe a
+ * lista pronta, e por isso continua pura.
  *
  * **Lead sem e-mail é o caso comum, não a exceção:** contato que veio do
  * WhatsApp costuma ter só telefone. Ele simplesmente não entra na lista, e o
- * evento continua válido — quem avisa o cliente é a nossa própria cadeia de
- * envio, não o convite do Google.
+ * evento continua válido — o lembrete no WhatsApp é outro caminho. **Lead COM
+ * e-mail entra:** a ficha tem o endereço, e o convite do Google é o que põe o
+ * compromisso na agenda dele. Quem monta a lista (e-mail da ficha + convidado
+ * digitado) é o executor; esta camada só traduz.
  */
 export interface ParticipanteDoAgendamento {
   email: string;
   nome?: string | null;
   /** O dono da agenda. Exatamente um participante deve marcar isto. */
   organizador?: boolean;
+  /**
+   * Este participante ainda NÃO confirmou nada aqui — o Google deve perguntar.
+   *
+   * O default (`false` ⇒ `responseStatus: "accepted"`) descreve o participante
+   * que já confirmou do nosso lado, e é por isso que ele é o default: cobrar
+   * RSVP de quem já disse sim no CRM seria pedir a mesma resposta duas vezes.
+   *
+   * O convidado DIGITADO À MÃO na tela é o caso oposto e por isso existe esta
+   * chave: ele nunca falou com o CRM, não confirmou coisa nenhuma, e mandá-lo
+   * como `accepted` produziria um convite que chega na caixa de entrada dele já
+   * respondido em seu nome — sem os botões "Sim / Talvez / Não", que são o
+   * motivo de se mandar convite do Google em vez de um e-mail comum.
+   */
+  aguardandoResposta?: boolean;
+}
+
+/**
+ * A lista de convidados do evento: e-mail da ficha do contato, depois o
+ * convidado digitado na tela. Mesmo endereço duas vezes vira uma linha — o
+ * Google recusa o evento inteiro se `attendees` tiver e-mail repetido.
+ *
+ * Os dois pedem RSVP (`aguardandoResposta`): o convite existe para a pessoa
+ * aceitar na caixa dela, não para gravar um "sim" em nome dela.
+ */
+export function participantesDoAgendamento(input: {
+  contactEmail?: string | null;
+  contactName?: string | null;
+  guestEmail?: string | null;
+}): ParticipanteDoAgendamento[] {
+  const out: ParticipanteDoAgendamento[] = [];
+  const vistos = new Set<string>();
+  const entra = (email: string | null | undefined, nome?: string | null) => {
+    const limpo = email?.trim();
+    if (!limpo) return;
+    const chave = limpo.toLowerCase();
+    if (vistos.has(chave)) return;
+    vistos.add(chave);
+    const p: ParticipanteDoAgendamento = { email: limpo, aguardandoResposta: true };
+    if (nome?.trim()) p.nome = nome.trim();
+    out.push(p);
+  };
+  entra(input.contactEmail, input.contactName);
+  entra(input.guestEmail);
+  return out;
 }
 
 /** O subconjunto de `calendar_appointments` que o Google entende. */
@@ -131,6 +177,11 @@ export interface ParticipanteDoGoogle {
 
 /** O recurso `events` do Google, no recorte que lemos e escrevemos. */
 export interface EventoDoGoogle {
+  conferenceData?: unknown;
+  hangoutLink?: string | null;
+  etag?: string | null;
+  organizer?: ParticipanteDoGoogle | null;
+  originalStartTime?: InstanteDoGoogle | null;
   id?: string | null;
   status?: string | null;
   /** `default | outOfOffice | focusTime | workingLocation | birthday | fromGmail`. */
@@ -234,8 +285,9 @@ function localDoEvento(a: AgendamentoParaGoogle): string | undefined {
     case "whatsapp":
       return detalhes ? `WhatsApp — ${detalhes}` : "WhatsApp";
     case "video_link":
-    case "google_meet":
       return a.meeting_url?.trim() || detalhes || undefined;
+    case "google_meet":
+      return detalhes || undefined;
   }
 }
 
@@ -274,10 +326,15 @@ export function paraEventoDoGoogle(a: AgendamentoParaGoogle): CorpoDeEventoDoGoo
     if (!email) {
       throw new Error("participante sem e-mail: o Google recusa o evento inteiro, não só o convidado");
     }
-    // `responseStatus: "accepted"` de propósito: sem isso o Google trata o
-    // convite como pendente e passa a cobrar RSVP de quem já confirmou aqui.
-    // Quem silencia o e-mail do convite é `sendUpdates: "none"`, na chamada.
-    const convidado: ParticipanteDoGoogle = { email, responseStatus: "accepted" };
+    // `responseStatus: "accepted"` é o DEFAULT, e continua sendo de propósito:
+    // sem isso o Google trata o convite como pendente e passa a cobrar RSVP de
+    // quem já confirmou aqui. Quem digitou um convidado à mão na tela não
+    // confirmou nada — esse manda `aguardandoResposta` e recebe os botões de
+    // RSVP. Quem silencia o e-mail do convite é `sendUpdates`, na chamada.
+    const convidado: ParticipanteDoGoogle = {
+      email,
+      responseStatus: p.aguardandoResposta ? "needsAction" : "accepted",
+    };
     if (p.nome?.trim()) convidado.displayName = p.nome.trim();
     if (p.organizador) convidado.organizer = true;
     return convidado;

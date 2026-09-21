@@ -208,7 +208,7 @@ test.describe("o wizard monta um funcionário", () => {
       // significou "funciona": o validador bate num endpoint de listagem, que
       // responde 200 com a conta zerada.
       await expect(corpo).toContainText(
-        /Conferindo se a chave tem crédito|Testei agora|não passou|Não consegui testar|conexão funcionando/i,
+        /Conferindo se a chave tem crédito|Testei agora|não passou|Não consegui testar/i,
       );
     }
   });
