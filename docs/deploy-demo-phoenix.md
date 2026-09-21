@@ -95,15 +95,37 @@ The Redis REST token must match:
 SRH_TOKEN == UPSTASH_REDIS_REST_TOKEN
 ```
 
-## 4. Start only the isolated demo stack
+## 4. Verify the Easypanel attachment and image architecture
 
-Create the proxy bridge once:
+Phoenix uses Easypanel Traefik 3.6.7 on the external overlay network
+`easypanel`, with entrypoints `http`/`https` and resolver `letsencrypt`.
+
+Before creating a demo container, verify the overlay accepts standalone
+containers and that the app image can run on this ARM64 host:
 
 ```bash
-docker network create deskcomm-demo-proxy 2>/dev/null || true
+docker network inspect easypanel \
+  --format 'driver={{.Driver}} scope={{.Scope}} attachable={{.Attachable}}'
+
+docker buildx imagetools inspect ghcr.io/leonardusrosa/deskcommcrm:latest
 ```
 
-Then:
+Do not continue unless either:
+
+- the image manifest includes `linux/arm64`; or
+- the host's already-proven deployment path explicitly runs the amd64 image via
+  configured emulation.
+
+The current repository image workflow declares `linux/amd64`, so ARM64
+compatibility must be proven rather than assumed.
+
+The `easypanel` network must report `attachable=true` for this standalone
+Compose design. If it is not attachable, use a Swarm service/Easypanel-managed
+service instead of weakening network isolation.
+
+## 5. Start only the isolated demo stack
+
+Once those two checks pass:
 
 ```bash
 docker compose --env-file .env.demo -f docker-compose.demo.yml pull
@@ -111,7 +133,7 @@ docker compose --env-file .env.demo -f docker-compose.demo.yml up -d
 docker compose --env-file .env.demo -f docker-compose.demo.yml ps
 ```
 
-The app is also bound to localhost for smoke testing:
+The app is additionally bound to loopback for host-local smoke testing:
 
 ```bash
 curl -fsS http://127.0.0.1:3300/api/demo/catalog
@@ -119,47 +141,30 @@ curl -fsS http://127.0.0.1:3300/api/demo/catalog
 
 Expected: HTTP 200, four market templates, and `provisioningEnabled: true`.
 
-## 5. Connect the existing reverse proxy
+## 6. Route through the existing Easypanel Traefik
 
-First identify the live Phoenix proxy with the preflight output.
+Do not start another proxy and do not modify ports 80/443.
 
-### If Phoenix uses the Deskcomm Caddy container
-
-Connect that existing Caddy container to the dedicated proxy bridge:
+Copy the supplied dynamic configuration template:
 
 ```bash
-docker network connect deskcomm-demo-proxy <existing-caddy-container>
+sudo cp infra/easypanel/deskcomm-demo.yml.example \
+  /etc/easypanel/traefik/config/deskcomm-demo.yml
 ```
 
-Add a hostname block to the Caddy configuration used by that container:
+Replace `demo.example.com` in that copied file with the real demo hostname.
+The template declares:
 
-```caddy
-demo.example.com {
-    encode gzip
-    reverse_proxy deskcomm-demo-app:3000
-}
-```
+- HTTP router on entrypoint `http` with HTTPS redirect;
+- HTTPS router on entrypoint `https`;
+- ACME resolver `letsencrypt`;
+- service target `http://deskcomm-demo-app:3000`.
 
-Reload the existing Caddy; do not start a second Caddy.
+Because Traefik and the demo app share the existing `easypanel` overlay, that
+service name resolves inside the proxy network without exposing port 3000 to the
+internet. The `127.0.0.1:3300` mapping remains host-local only.
 
-### If Phoenix uses Traefik
-
-Set in `.env.demo`:
-
-```dotenv
-DEMO_TRAEFIK_ENABLED=true
-DEMO_PROXY_NETWORK=<the existing Traefik network>
-```
-
-and recreate only the demo app:
-
-```bash
-docker compose --env-file .env.demo -f docker-compose.demo.yml up -d app
-```
-
-The Compose labels route `DEMO_DOMAIN` to port 3000.
-
-## 6. Public smoke test
+## 7. Public smoke test
 
 After DNS/HTTPS resolves:
 
