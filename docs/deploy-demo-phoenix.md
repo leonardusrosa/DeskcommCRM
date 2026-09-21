@@ -31,13 +31,30 @@ has enough headroom to self-host Supabase.
 
 A separate Supabase database/auth stack is mandatory.
 
-The current free Supabase account is already at its two-active-project limit, so
-the safe choices are:
+### Phoenix preflight decision — 2026-09-21
 
-1. create the demo project under a separate Supabase account/free allowance; or
-2. self-host Supabase on Phoenix only after reviewing the preflight output.
+The live Phoenix host was measured before deployment:
 
-Do **not** point the demo at production or at `prospector-crm`.
+- ARM64 / Ubuntu 24.04
+- root filesystem: 177 GB / 193 GB used (92%; ~17 GB free)
+- RAM: 11 GiB total, ~5.5 GiB available
+- swap: 6.1 GiB / 8 GiB already in use
+- one Deskcomm Supabase stack already occupies the standard local ports
+- another independent Supabase stack (`automais_supabase`) is also running
+
+**Decision: do not self-host another Supabase stack on Phoenix in this state.**
+
+A third Supabase stack would add several database/auth/API containers, duplicate
+large images, require non-default port mapping, and reduce both disk and memory
+safety margin on the same machine that hosts production.
+
+Use a dedicated external NON-PRODUCTION Supabase project instead. The currently
+connected free Supabase account is already at its two-active-project limit, so
+create the demo project under a separate Supabase account/free allowance (or a
+paid slot if deliberately chosen later).
+
+Do **not** point the demo at production, `prospector-crm`, the existing local
+Deskcomm Supabase, or `automais_supabase`.
 
 For a fresh Supabase project, Deskcomm's canonical fresh-install schema is
 `supabase/baseline.sql`; do not replay the historical migration chain from
