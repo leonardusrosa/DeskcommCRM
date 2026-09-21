@@ -112,6 +112,7 @@ CRONS="
 # pagar, e a diferença entre nascer às 5h ou às 17h não muda nada para quem paga.
 # Barato: uma consulta por instalação, e quem não tem molde nenhum sai na hora.
 50 5 * * *|60|api/v1/cron/recurring-entries
+23 * * * *|60|api/v1/cron/demo-expiry
 "
 
 # CRONTAB_PATH é ponto de injeção do teste (tests/shell/scheduler-entrypoint.test.sh).

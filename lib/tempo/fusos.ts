@@ -39,6 +39,8 @@ export const FUSOS_OFERECIDOS: { codigo: string; rotulo: string }[] = [
   { codigo: "America/Lima", rotulo: "Lima (Peru)" },
   { codigo: "America/Bogota", rotulo: "Bogotá (Colômbia)" },
   { codigo: "America/Mexico_City", rotulo: "Cidade do México (México)" },
+  { codigo: "America/Cancun", rotulo: "Cancún (México)" },
+  { codigo: "America/Tijuana", rotulo: "Tijuana (México)" },
   { codigo: "America/Sao_Paulo", rotulo: "São Paulo (Brasil)" },
   { codigo: "America/Manaus", rotulo: "Manaus (Brasil)" },
   { codigo: "America/Belem", rotulo: "Belém (Brasil)" },
@@ -50,6 +52,7 @@ export const FUSOS_OFERECIDOS: { codigo: string; rotulo: string }[] = [
   { codigo: "Africa/Luanda", rotulo: "Luanda (Angola)" },
   // Mesmo motivo, em Portugal: sem Lisboa, quem opera lá ficava entre um fuso
   // do Brasil e UTC — e UTC erra uma hora no verão europeu.
+  { codigo: "Europe/Madrid", rotulo: "Madrid (Espanha)" },
   { codigo: "Europe/Lisbon", rotulo: "Lisboa (Portugal)" },
   { codigo: "UTC", rotulo: "UTC" },
 ];

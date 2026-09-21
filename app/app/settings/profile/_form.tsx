@@ -21,17 +21,7 @@ import {
   SEM_PREFERENCIA_DE_IDIOMA,
   type Locale,
 } from "@/lib/schemas/settings";
-
-const TIMEZONES = [
-  "Africa/Luanda",
-  "America/Sao_Paulo",
-  "America/Manaus",
-  "America/Belem",
-  "America/Recife",
-  "America/Fortaleza",
-  "Europe/Lisbon",
-  "UTC",
-];
+import { FUSOS_OFERECIDOS } from "@/lib/tempo/fusos";
 
 interface Props {
   email: string;
@@ -123,9 +113,9 @@ export function ProfileForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TIMEZONES.map((tz) => (
-                  <SelectItem key={tz} value={tz}>
-                    {tz}
+                {FUSOS_OFERECIDOS.map((tz) => (
+                  <SelectItem key={tz.codigo} value={tz.codigo}>
+                    {tz.rotulo}
                   </SelectItem>
                 ))}
               </SelectContent>
