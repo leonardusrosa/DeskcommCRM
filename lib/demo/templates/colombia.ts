@@ -12,8 +12,9 @@ export const colombiaDentalProfile: DentalDemoTemplate = {
   timezone: "America/Bogota",
   currency: "COP",
   scenario: {
-    title: "Clínica Odontológica Integral Bogotá",
-    description: "Demostración de flujo comercial completo para clínicas dentales privadas: captación por WhatsApp, calificación en pipeline y agenda multiespecialista.",
+    title: "Clínica Odontológica Especializada Bogotá",
+    description:
+      "Demostración de flujo comercial completo para clínicas dentales privadas: captación por WhatsApp, calificación en embudo y agenda multiespecialista.",
     keyHighlights: [
       "Inbox WhatsApp con 3 estados: nuevo contacto, negociación activa y paciente regular",
       "Funil de 6 etapas odontológicas adaptado a conversión de tratamientos",

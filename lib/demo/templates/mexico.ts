@@ -16,7 +16,7 @@ export const mexicoDentalProfile: DentalDemoTemplate = {
     description: "Demostración comercial para consultorios y clínicas en México: gestión multiespecialidad con WhatsApp, seguimiento de cotizaciones y citas de ortodoncia/implantes.",
     keyHighlights: [
       "Inbox WhatsApp con prospecto nuevo, cotización en negociación y paciente en revisión",
-      "Pipeline adaptado a tiempos de decisión y financiamiento en pesos mexicanos",
+      "Embudo adaptado a tiempos de decisión y financiamiento en pesos mexicanos",
       "Agenda con 3 citas futuras y 1 consulta concluida entre 3 doctores especialistas",
     ],
   },

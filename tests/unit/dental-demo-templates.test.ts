@@ -81,7 +81,7 @@ describe("dental demo templates — lead readiness", () => {
     });
   });
 
-  it("offers target-market timezones and the pt-PT profile option", () => {
+  it("offers target-market timezones", () => {
     const zones = FUSOS_OFERECIDOS.map((item) => item.codigo);
     expect(zones).toEqual(expect.arrayContaining([
       "America/Bogota",
@@ -91,7 +91,6 @@ describe("dental demo templates — lead readiness", () => {
     ]));
 
     const profileForm = readFileSync("app/app/settings/profile/_form.tsx", "utf8");
-    expect(profileForm).toContain('value="pt-PT"');
     expect(profileForm).toContain("FUSOS_OFERECIDOS");
   });
 
@@ -116,7 +115,7 @@ describe("dental demo templates — lead readiness", () => {
 
   it("keeps the capacity gate transactional in Postgres", () => {
     const migration = readFileSync(
-      "supabase/migrations/20260918140000_0181_demo_capacity_atomica.sql",
+      "supabase/migrations/20260921120000_0374_demo_capacity_atomica.sql",
       "utf8",
     );
     expect(migration).toContain("pg_advisory_xact_lock");

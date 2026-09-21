@@ -42,7 +42,7 @@ export async function PUT(req: NextRequest): Promise<Response> {
   const requestId = randomUUID();
   const authz = await requireRole("viewer", { requestId, resource: "push_subscriptions" });
   if (!authz.ok) return authz.response;
-  const t = (texto: string) => traduzir(texto, authz.user.idioma ?? "pt-BR");
+  const t = (texto: string) => traduzir(texto, authz.user.idioma);
   if (!vapidPronto()) {
     return fail("unavailable", t("Web Push não configurado nesta instalação."), 503, { requestId });
   }
@@ -101,7 +101,7 @@ export async function DELETE(req: NextRequest): Promise<Response> {
   const requestId = randomUUID();
   const authz = await requireRole("viewer", { requestId, resource: "push_subscriptions" });
   if (!authz.ok) return authz.response;
-  const t = (texto: string) => traduzir(texto, authz.user.idioma ?? "pt-BR");
+  const t = (texto: string) => traduzir(texto, authz.user.idioma);
 
   let raw: unknown;
   try {

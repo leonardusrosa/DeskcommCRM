@@ -44,7 +44,7 @@ export default async function NotificationsPage() {
   // `t` local em vez do hook: esta página é componente de SERVIDOR, e lá o
   // idioma vem resolvido em `user.idioma` (a cadeia pessoa → organização →
   // padrão vive em `lib/auth/server.ts`), sem reler o `locale` cru.
-  const idioma: "pt-BR" | "es" = (user.idioma as "pt-BR" | "es") ?? "pt-BR";
+  const idioma = user.idioma;
   const t = (texto: string) => traduzir(texto, idioma);
   const pushPronto = vapidPronto();
 

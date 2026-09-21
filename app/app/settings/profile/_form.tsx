@@ -14,14 +14,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { updateProfile } from "@/app/actions/settings/updateProfile";
-import { profileSchema, type Locale } from "@/lib/schemas/settings";
+import { useT } from "@/hooks/i18n/useT";
+import { IDIOMAS_VISIVEIS } from "@/lib/i18n/registro";
+import {
+  profileSchema,
+  SEM_PREFERENCIA_DE_IDIOMA,
+  type Locale,
+} from "@/lib/schemas/settings";
 import { FUSOS_OFERECIDOS } from "@/lib/tempo/fusos";
 
 interface Props {
   email: string;
   initialFullName: string | null;
   initialAvatarUrl: string | null;
-  initialLocale: Locale;
+  initialLocale: Locale | typeof SEM_PREFERENCIA_DE_IDIOMA;
   initialTimezone: string;
 }
 
@@ -32,8 +38,9 @@ export function ProfileForm({
   initialLocale,
   initialTimezone,
 }: Props) {
+  const t = useT();
   const [fullName, setFullName] = useState(initialFullName ?? "");
-  const [locale, setLocale] = useState<Locale>(initialLocale);
+  const [locale, setLocale] = useState<Locale | typeof SEM_PREFERENCIA_DE_IDIOMA>(initialLocale);
   const [timezone, setTimezone] = useState(initialTimezone);
   const [avatarUrl, setAvatarUrl] = useState(initialAvatarUrl ?? "");
   const [isPending, startTransition] = useTransition();
@@ -47,13 +54,13 @@ export function ProfileForm({
       avatar_url: avatarUrl || null,
     });
     if (!parsed.success) {
-      toast.error("Dados inválidos.");
+      toast.error(t("Dados inválidos."));
       return;
     }
     startTransition(async () => {
       const r = await updateProfile(parsed.data);
-      if (r.ok) toast.success("Perfil atualizado.");
-      else toast.error(`Erro: ${r.error}`);
+      if (r.ok) toast.success(t("Perfil atualizado."));
+      else toast.error(`${t("Erro")}: ${r.error}`);
     });
   }
 
@@ -61,14 +68,14 @@ export function ProfileForm({
     <form onSubmit={handleSubmit} className="max-w-xl">
       <Card className="space-y-4 p-6">
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">{t("Email")}</Label>
           <Input id="email" value={email} disabled />
           <p className="text-xs text-muted-foreground">
-            Trocar email — em breve.
+            {t("Trocar email — em breve.")}
           </p>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="full_name">Nome completo</Label>
+          <Label htmlFor="full_name">{t("Nome completo")}</Label>
           <Input
             id="full_name"
             value={fullName}
@@ -78,25 +85,29 @@ export function ProfileForm({
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="locale">Idioma</Label>
+            <Label htmlFor="locale">{t("Idioma")}</Label>
             <Select value={locale} onValueChange={(v) => setLocale(v as Locale)}>
               <SelectTrigger id="locale">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="pt-BR">Português (BR)</SelectItem>
-                <SelectItem value="pt-PT">Português (PT)</SelectItem>
-                {/* Espanhol entrou quando passou a MUDAR alguma coisa. Enquanto
-                    o campo era guardado e ninguém o lia, oferecer um idioma a
-                    mais era prometer o que a tela não cumpre — e o operador
-                    conclui que o sistema está quebrado.
-                    `en-US` saiu pela mesma razão: nunca teve tradução. */}
-                <SelectItem value="es">Español</SelectItem>
+                <SelectItem value={SEM_PREFERENCIA_DE_IDIOMA}>
+                  {t("Seguir o idioma da empresa")}
+                </SelectItem>
+                {/* A lista vem do registro, e só com o que o nível deixa
+                    aparecer. Oferecer um idioma que não muda a tela é prometer
+                    o que ela não cumpre — `en-US` saiu por isso, e um idioma
+                    em construção fica fora pela mesma razão. */}
+                {IDIOMAS_VISIVEIS.map(({ codigo, nomeNativo }) => (
+                  <SelectItem key={codigo} value={codigo}>
+                    {nomeNativo}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="timezone">Fuso horário</Label>
+            <Label htmlFor="timezone">{t("Fuso horário")}</Label>
             <Select value={timezone} onValueChange={setTimezone}>
               <SelectTrigger id="timezone">
                 <SelectValue />
@@ -112,7 +123,7 @@ export function ProfileForm({
           </div>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="avatar_url">Avatar URL</Label>
+          <Label htmlFor="avatar_url">{t("Avatar URL")}</Label>
           <Input
             id="avatar_url"
             type="url"
@@ -121,12 +132,12 @@ export function ProfileForm({
             onChange={(e) => setAvatarUrl(e.target.value)}
           />
           <p className="text-xs text-muted-foreground">
-            Upload de arquivo — em breve. Cole uma URL pública.
+            {t("Upload de arquivo — em breve. Cole uma URL pública.")}
           </p>
         </div>
         <div className="flex sm:justify-end">
           <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
-            {isPending ? "Salvando…" : "Salvar"}
+            {isPending ? t("Salvando…") : t("Salvar")}
           </Button>
         </div>
       </Card>

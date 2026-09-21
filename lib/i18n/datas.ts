@@ -2,6 +2,7 @@ import { es, pt, ptBR } from "date-fns/locale";
 import type { Locale } from "date-fns";
 
 import { IDIOMA_PADRAO, type Idioma } from "./idiomas";
+import { idiomaVisivelPorCodigo } from "./registro";
 
 /**
  * A DATA no idioma de quem está lendo.
@@ -33,13 +34,13 @@ import { IDIOMA_PADRAO, type Idioma } from "./idiomas";
  */
 const LOCALE_DE_DATA: Record<Idioma, Locale> = {
   "pt-BR": ptBR,
-  "pt-PT": pt,
   es,
 };
 
 /** O `Locale` do date-fns para quem está lendo. */
-export function localeDeData(idioma: Idioma): Locale {
-  return LOCALE_DE_DATA[idioma] ?? LOCALE_DE_DATA[IDIOMA_PADRAO];
+export function localeDeData(idioma: Idioma | "pt-PT"): Locale {
+  if (idioma === "pt-PT") return pt;
+  return LOCALE_DE_DATA[idioma as Idioma] ?? LOCALE_DE_DATA[IDIOMA_PADRAO];
 }
 
 /**
@@ -54,12 +55,7 @@ export function localeDeData(idioma: Idioma): Locale {
  * e vírgula para decimal), então passar por aqui não altera o que já aparece —
  * o ganho é não haver um segundo lugar onde o idioma está escrito à mão.
  */
-const TAG_BCP47: Record<Idioma, string> = {
-  "pt-BR": "pt-BR",
-  "pt-PT": "pt-PT",
-  es: "es",
-};
-
-export function tagDeIdioma(idioma: Idioma): string {
-  return TAG_BCP47[idioma] ?? TAG_BCP47[IDIOMA_PADRAO];
+export function tagDeIdioma(idioma: Idioma | "pt-PT"): string {
+  if (idioma === "pt-PT") return "pt-PT";
+  return idiomaVisivelPorCodigo(idioma as Idioma).tagBcp47;
 }

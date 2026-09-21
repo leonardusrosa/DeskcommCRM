@@ -21,7 +21,7 @@ export interface FinalizeHandoffInput {
   latencyMs?: number;
   tokensIn?: number;
   tokensOut?: number;
-  costCents?: number | null;
+  costCents?: number;
   stepsCount?: number;
   toolCalls?: FinalizeRunInput["toolCalls"];
   isDryRun?: boolean;
@@ -51,6 +51,7 @@ export async function finalizeHandoff(input: FinalizeHandoffInput): Promise<void
       conversationId: input.conversationId,
       organizationId: input.organizationId,
       reason: input.reason,
+      origem: "runtime_nativo",
       leadId,
       metadata: { run_id: input.runId, source: input.source },
     });
@@ -64,7 +65,7 @@ export async function finalizeHandoff(input: FinalizeHandoffInput): Promise<void
     latencyMs: input.latencyMs,
     tokensIn: input.tokensIn ?? 0,
     tokensOut: input.tokensOut ?? 0,
-    costCents: input.costCents,
+    costCents: input.costCents ?? 0,
     stepsCount: input.stepsCount ?? 0,
     toolCalls: input.toolCalls,
     isDryRun: input.isDryRun,

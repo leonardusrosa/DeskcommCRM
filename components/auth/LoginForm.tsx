@@ -5,44 +5,18 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { useT } from "@/hooks/i18n/useT";
 import { loginSchema, type LoginInput } from "@/lib/auth/schemas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signInWithPassword } from "@/app/actions/auth/signInWithPassword";
-import { GoogleLogo } from "@/lib/ui/icons";
-import { createClient } from "@/lib/supabase/browser";
 
 export function LoginForm({ next }: { next?: string }) {
+  const t = useT();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
-  const [googleLoading, setGoogleLoading] = useState(false);
-
-  const handleGoogleSignIn = async () => {
-    setServerError(null);
-    setGoogleLoading(true);
-    try {
-      const supabase = createClient();
-      const origin =
-        typeof window !== "undefined"
-          ? window.location.origin
-          : "";
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${origin}/auth/confirm`,
-        },
-      });
-      if (error) {
-        setServerError(error.message);
-        setGoogleLoading(false);
-      }
-    } catch (err) {
-      setServerError(err instanceof Error ? err.message : "Erro ao conectar com Google");
-      setGoogleLoading(false);
-    }
-  };
 
   const {
     register,
@@ -61,7 +35,7 @@ export function LoginForm({ next }: { next?: string }) {
       const res = await signInWithPassword(values, next);
       if (!res) {
         // Should be unreachable (redirect throws), but guard anyway.
-        router.replace(next || "/app/inbox");
+        router.replace(next || "/app");
         return;
       }
       if (res.error === "mfa_required") {
@@ -72,13 +46,13 @@ export function LoginForm({ next }: { next?: string }) {
         return;
       }
       if (res.error === "invalid_credentials") {
-        setServerError("Email ou senha incorretos.");
+        setServerError(t("Email ou senha incorretos."));
       } else if (res.error === "rate_limited") {
-        setServerError("Muitas tentativas. Aguarde alguns minutos.");
+        setServerError(t("Muitas tentativas. Aguarde alguns minutos."));
       } else if (res.error === "validation_error") {
-        setServerError("Dados inválidos. Confira os campos.");
+        setServerError(t("Dados inválidos. Confira os campos."));
       } else {
-        setServerError("Erro inesperado. Tente novamente.");
+        setServerError(t("Erro inesperado. Tente novamente."));
       }
     });
   };
@@ -86,7 +60,7 @@ export function LoginForm({ next }: { next?: string }) {
   return (
     <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
       <div className="space-y-1.5">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email">{t("Email")}</Label>
         <Input
           id="email"
           type="email"
@@ -96,11 +70,11 @@ export function LoginForm({ next }: { next?: string }) {
           {...register("email")}
         />
         {errors.email && (
-          <p className="text-xs text-destructive">{errors.email.message}</p>
+          <p className="text-xs text-destructive">{t(errors.email.message ?? "")}</p>
         )}
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="password">Senha</Label>
+        <Label htmlFor="password">{t("Senha")}</Label>
         <Input
           id="password"
           type="password"
@@ -109,7 +83,7 @@ export function LoginForm({ next }: { next?: string }) {
           {...register("password")}
         />
         {errors.password && (
-          <p className="text-xs text-destructive">{errors.password.message}</p>
+          <p className="text-xs text-destructive">{t(errors.password.message ?? "")}</p>
         )}
       </div>
       {serverError && (
@@ -120,28 +94,8 @@ export function LoginForm({ next }: { next?: string }) {
           {serverError}
         </div>
       )}
-      <Button type="submit" className="w-full" disabled={isPending || googleLoading}>
-        {isPending ? "Entrando..." : "Entrar"}
-      </Button>
-
-      <div className="relative my-2">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">ou</span>
-        </div>
-      </div>
-
-      <Button
-        type="button"
-        variant="outline"
-        className="w-full"
-        disabled={isPending || googleLoading}
-        onClick={handleGoogleSignIn}
-      >
-        <GoogleLogo size={16} weight="bold" className="mr-2 shrink-0" aria-hidden />
-        {googleLoading ? "Conectando..." : "Continuar com Google"}
+      <Button type="submit" className="w-full" disabled={isPending}>
+        {isPending ? t("Entrando...") : t("Entrar")}
       </Button>
     </form>
   );

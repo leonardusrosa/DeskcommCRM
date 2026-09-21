@@ -71,7 +71,7 @@ export default async function Page() {
       temSegredoSalvo={Boolean(linha?.client_secret_encrypted)}
       atualizadoEm={
         linha?.updated_at
-          ? new Date(linha.updated_at).toLocaleString(tagDeIdioma(usuario.idioma ?? "pt-BR"), {
+          ? new Date(linha.updated_at).toLocaleString(tagDeIdioma(usuario.idioma), {
               // Fuso fixo porque a coluna é da INSTALAÇÃO: não há organização
               // resolvida nesta tela de onde tirar um, e formatar no cliente
               // faria o HTML servido e a hidratação divergirem.

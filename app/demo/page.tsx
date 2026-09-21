@@ -4,6 +4,7 @@ import { DemoRequestForm } from "@/components/demo/DemoRequestForm";
 import { demoProvisioningEnabled } from "@/lib/demo/safety";
 import { branding } from "@/lib/branding";
 import type { DemoCountry } from "@/lib/demo/types";
+import { traduzir } from "@/lib/i18n/dicionario";
 
 export function generateMetadata(): Metadata {
   const { name } = branding();
@@ -23,7 +24,8 @@ export default async function DemoPage({
   const params = await searchParams;
   const candidate = (params?.country || "CO").toUpperCase() as DemoCountry;
   const country = VALID_COUNTRIES.has(candidate) ? candidate : "CO";
-  const pt = country === "PT";
+  const idioma = country === "PT" ? "pt-PT" : "es";
+  const t = (texto: string) => traduzir(texto, idioma);
   const { name: brandName } = branding();
 
   return (
@@ -31,26 +33,22 @@ export default async function DemoPage({
       <div className="mx-auto grid min-h-screen max-w-6xl items-center gap-12 px-5 py-12 lg:grid-cols-2 lg:px-8">
         <section className="space-y-6">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">
-            {pt ? "Demonstração dentária sintética" : "Demo dental sintética"}
+            {t("Demonstração dentária sintética")}
           </p>
           <h1 className="text-4xl font-bold tracking-tight md:text-5xl">
-            {pt
-              ? `Veja como o ${brandName} funciona na receção de uma clínica dentária`
-              : `Mira cómo funciona ${brandName} en la recepción de una clínica dental`}
+            {t("Veja como o")} {brandName} {t("funciona na recepção de uma clínica dentária")}
           </h1>
           <p className="text-lg leading-relaxed text-muted-foreground">
-            {pt
-              ? `Explore conversas fictícias de WhatsApp, pacientes sintéticos, oportunidades comerciais e uma agenda com vários profissionais. A demonstração mostra funções reais do MVP sem sugerir integrações ou módulos clínicos que o ${brandName} não oferece.`
-              : `Recorre conversaciones ficticias de WhatsApp, pacientes sintéticos, oportunidades comerciales y una agenda con varios profesionales. La demo muestra funciones reales del MVP sin afirmar integraciones o módulos clínicos que ${brandName} no ofrece.`}
+            {t("Explore conversas fictícias de WhatsApp, pacientes sintéticos, oportunidades comerciais e uma agenda com vários profissionais. A demonstração mostra funções reais do MVP sem sugerir integrações ou módulos clínicos que a plataforma não oferece.")}
           </p>
           <div className="grid gap-3 text-sm sm:grid-cols-2">
-            <div className="rounded-md border p-4"><strong>Inbox</strong><br />{pt ? "Conversas sintéticas de receção" : "Conversaciones sintéticas de recepción"}</div>
-            <div className="rounded-md border p-4"><strong>CRM</strong><br />{pt ? "Pipeline de tratamentos e acompanhamento" : "Pipeline de tratamientos y seguimiento"}</div>
-            <div className="rounded-md border p-4"><strong>Agenda</strong><br />{pt ? "Serviços, especialistas e marcações" : "Servicios, especialistas y citas"}</div>
-            <div className="rounded-md border p-4"><strong>{pt ? "Mercados" : "Mercado"}</strong><br />{pt ? "CO, MX, ES e PT localizados" : "CO, MX, ES y PT localizados"}</div>
+            <div className="rounded-md border p-4"><strong>Inbox</strong><br />{t("Conversas sintéticas de recepção")}</div>
+            <div className="rounded-md border p-4"><strong>CRM</strong><br />{t("Funil de tratamentos e acompanhamento")}</div>
+            <div className="rounded-md border p-4"><strong>Agenda</strong><br />{t("Serviços, especialistas e agendamentos")}</div>
+            <div className="rounded-md border p-4"><strong>{t("Mercado")}</strong><br />{t("CO, MX, ES e PT localizados")}</div>
           </div>
           <Link href="/demo/catalog" className="inline-flex text-sm font-medium text-accent hover:underline">
-            {pt ? "Comparar os quatro ambientes →" : "Comparar los cuatro entornos →"}
+            {t("Comparar os quatro ambientes →")}
           </Link>
         </section>
         <DemoRequestForm initialCountry={country} provisioningEnabled={demoProvisioningEnabled()} />

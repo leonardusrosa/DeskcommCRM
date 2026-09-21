@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { useDemoRequest } from "@/hooks/useDemoRequest";
 import { useMarcaDaInstalacao } from "@/lib/branding/contexto";
 import type { DemoCountry } from "@/lib/demo/types";
+import { traduzir } from "@/lib/i18n/dicionario";
+import type { Idioma } from "@/lib/i18n/idiomas";
 
 const COUNTRIES: Array<{ code: DemoCountry; label: string; flag: string }> = [
   { code: "CO", label: "Colombia", flag: "🇨🇴" },
@@ -25,27 +27,26 @@ export function DemoRequestForm({
 }) {
   const state = useDemoRequest(initialCountry);
   const { name: brandName } = useMarcaDaInstalacao();
-  const pt = state.country === "PT";
+  const idioma = state.country === "PT" ? "pt-PT" : "es";
+  const t = (texto: string) => traduzir(texto, idioma);
 
   if (state.created) {
     return (
       <Card className="w-full max-w-xl">
         <CardHeader>
-          <CardTitle>{pt ? "Demonstração preparada" : "Demo preparada"}</CardTitle>
+          <CardTitle>{t("Demonstração preparada")}</CardTitle>
           <CardDescription>
-            {pt
-              ? `Este ambiente contém apenas dados sintéticos e expira em ${state.created.expiresInHours} horas.`
-              : `Este ambiente contiene únicamente datos sintéticos y expira en ${state.created.expiresInHours} horas.`}
+            {t("Este ambiente contém apenas dados sintéticos e expira em")} {state.created.expiresInHours} {t("horas.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-md border bg-muted/30 p-4 text-sm">
-            <p><strong>{pt ? "Clínica" : "Clínica"}:</strong> {state.created.clinicName}</p>
-            <p><strong>{pt ? "Utilizador" : "Usuario"}:</strong> <code>{state.created.ownerEmail}</code></p>
-            <p><strong>{pt ? "Palavra-passe temporária" : "Contraseña temporal"}:</strong> <code>{state.created.password}</code></p>
+            <p><strong>{t("Clínica")}:</strong> {state.created.clinicName}</p>
+            <p><strong>{t("Usuário")}:</strong> <code>{state.created.ownerEmail}</code></p>
+            <p><strong>{t("Senha temporária")}:</strong> <code>{state.created.password}</code></p>
           </div>
           <Button asChild className="w-full">
-            <Link href={state.created.loginUrl}>{pt ? `Abrir ${brandName}` : `Abrir ${brandName}`}</Link>
+            <Link href={state.created.loginUrl}>{t("Abrir")} {brandName}</Link>
           </Button>
         </CardContent>
       </Card>
@@ -55,28 +56,24 @@ export function DemoRequestForm({
   return (
     <Card className="w-full max-w-xl">
       <CardHeader>
-        <CardTitle>{pt ? "Criar um ambiente dentário de demonstração" : "Crear un entorno dental de demostración"}</CardTitle>
+        <CardTitle>{t("Criar um ambiente dentário de demonstração")}</CardTitle>
         <CardDescription>
-          {pt
-            ? "Inbox, CRM e agenda com pacientes e conversas fictícias. Não são utilizados dados de clientes reais."
-            : "Inbox, CRM y agenda con pacientes y conversaciones ficticias. No se utilizan datos de clientes reales."}
+          {t("Inbox, CRM e agenda com pacientes e conversas fictícias. Não são utilizados dados de clientes reais.")}
         </CardDescription>
       </CardHeader>
       <CardContent>
         {!provisioningEnabled ? (
           <div className="space-y-3 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
             <p>
-              {pt
-                ? "O catálogo está disponível para apresentação. A criação automática de ambientes está desativada nesta instalação."
-                : "El catálogo está disponible para presentación. La creación automática de entornos está desactivada en esta instalación."}
+              {t("O catálogo está disponível para apresentação. A criação automática de ambientes está desativada nesta instalação.")}
             </p>
-            <p>{pt ? "Um operador só pode ativá-la no ambiente isolado de demonstrações." : "Un operador puede habilitarla únicamente en el entorno de demos aislado."}</p>
+            <p>{t("Um operador só pode ativá-la no ambiente isolado de demonstrações.")}</p>
           </div>
         ) : (
           <form onSubmit={state.submit} className="space-y-5">
             {state.error && <p className="text-sm text-destructive">{state.error}</p>}
             <div className="space-y-2">
-              <Label>{pt ? "País da demonstração" : "País de la demo"}</Label>
+              <Label>{t("País da demonstração")}</Label>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {COUNTRIES.map((item) => (
                   <button
@@ -95,17 +92,17 @@ export function DemoRequestForm({
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="demo-company">{pt ? "Nome da clínica (opcional)" : "Nombre de la clínica (opcional)"}</Label>
+              <Label htmlFor="demo-company">{t("Nome da clínica (opcional)")}</Label>
               <Input
                 id="demo-company"
                 value={state.company}
                 onChange={(event) => state.setCompany(event.target.value)}
-                placeholder={pt ? "Clínica Dentária Central" : "Clínica Dental Central"}
+                placeholder={t("Clínica Dentária Central")}
                 maxLength={120}
               />
             </div>
             <Button type="submit" className="w-full" disabled={state.loading}>
-              {state.loading ? (pt ? "A preparar ambiente…" : "Preparando ambiente…") : (pt ? "Criar demonstração sintética" : "Crear demo sintética")}
+              {state.loading ? t("Preparando ambiente…") : t("Criar demonstração sintética")}
             </Button>
           </form>
         )}

@@ -52,8 +52,6 @@ const VARIAVEL_DA_CHAVE: Record<string, string> = {
   anthropic: "ANTHROPIC_API_KEY",
   openai: "OPENAI_API_KEY",
   openrouter: "OPENROUTER_API_KEY",
-  opencode_zen: "OPENCODE_ZEN_API_KEY",
-  deepseek: "DEEPSEEK_API_KEY",
   // O Google não tem chave de plataforma: `resolveOrgLlmConfig` não tem ramo de
   // fallback para ele, e nenhuma variável existe em `lib/env.ts` nem no
   // `.env.example`. Declarar aqui um nome inventado faria o leitor prometer um
@@ -76,7 +74,12 @@ export function lerAmbiente(source: FonteDeAmbiente = process.env): AmbienteDaIn
   return {
     chavesDeProvedor,
     gateway: preenchida(source, "AI_GATEWAY_API_KEY"),
-    email: preenchida(source, "RESEND_API_KEY"),
+    // Dois transportes, e a pergunta aqui é "esta instalação consegue mandar
+    // e-mail?" — não "qual provedor ela usa". Ler só um deles diria "e-mail não
+    // configurado" a quem preencheu o outro. O `.env` é a única fonte visível
+    // daqui: a configuração gravada pela tela mora no banco, e este resumo é
+    // síncrono e sem I/O de propósito (ver `lerAmbiente`). É piso, não veredito.
+    email: preenchida(source, "RESEND_API_KEY") || preenchida(source, "SMTP_HOST"),
     transporteDeWhatsapp: lerTransporteDeWhatsapp(source),
   };
 }
