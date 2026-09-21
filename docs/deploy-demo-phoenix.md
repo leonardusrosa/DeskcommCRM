@@ -48,7 +48,14 @@ A third Supabase stack would add several database/auth/API containers, duplicate
 large images, require non-default port mapping, and reduce both disk and memory
 safety margin on the same machine that hosts production.
 
-Use a dedicated external NON-PRODUCTION Supabase project instead. The currently
+Use a dedicated external NON-PRODUCTION Supabase project instead.
+
+For this demo the isolated project is:
+
+- project ref: `kkbbqwhkkborpugmiqqq`
+- project URL: `https://kkbbqwhkkborpugmiqqq.supabase.co`
+- Auth Site URL: `https://demo.deskcomm.autocora.com.br`
+- Auth redirect: `https://demo.deskcomm.autocora.com.br/auth/confirm` The currently
 connected free Supabase account is already at its two-active-project limit, so
 create the demo project under a separate Supabase account/free allowance (or a
 paid slot if deliberately chosen later).
