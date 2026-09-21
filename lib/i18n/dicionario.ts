@@ -10802,6 +10802,9 @@ export const DICIONARIO: Traducoes = {
   "Clínica Dentária Central": { es: "Clínica Dental Central" },
   "Preparando ambiente…": { es: "Preparando ambiente…" },
   "Criar demonstração sintética": { es: "Crear demo sintética" },
+  "Cancún (México)": { es: "Cancún (México)" },
+  "Tijuana (México)": { es: "Tijuana (México)" },
+  "Madrid (Espanha)": { es: "Madrid (España)" },
 };
 
 /**

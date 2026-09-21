@@ -21,6 +21,7 @@ import {
   SEM_PREFERENCIA_DE_IDIOMA,
   type Locale,
 } from "@/lib/schemas/settings";
+// Oferece os fusos suportados pela plataforma (ex: "Europe/Lisbon")
 import { FUSOS_OFERECIDOS } from "@/lib/tempo/fusos";
 
 interface Props {
