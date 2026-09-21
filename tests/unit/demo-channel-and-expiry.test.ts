@@ -1,19 +1,11 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { isSyntheticDemoChannelMetadata } from "@/lib/demo/runtime";
 import { isExpiredDemoSettings } from "@/lib/demo/expiry";
 import { cleanupExpiredDemos } from "@/lib/demo/cleanup";
-import { GET as getDemoExpiry } from "@/app/api/v1/cron/demo-expiry/route";
-import * as safety from "@/lib/demo/safety";
 import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
 
-vi.mock("@/lib/env", () => ({
-  env: {
-    INTERNAL_CRON_SECRET: "cron_secret_test_12345",
-    INTERNAL_SECRET: "secret_test_12345",
-  },
-}));
 vi.mock("@/lib/impersonate/support", () => ({ requireSupportWrite: vi.fn(async () => null) }));
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: vi.fn() }));
 vi.mock("@/lib/auth/server", () => ({
@@ -117,6 +109,14 @@ describe("synthetic demo channel metadata & safety checks", () => {
 describe("demo expiry and cleanup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.resetModules();
+    vi.stubEnv("INTERNAL_CRON_SECRET", "cron_secret_test_12345");
+    vi.stubEnv("INTERNAL_SECRET", "secret_test_12345");
+    vi.stubEnv("DEMO_PROVISIONING_ENABLED", "false");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("detects expired demo settings accurately", () => {
@@ -172,12 +172,13 @@ describe("demo expiry and cleanup", () => {
     const req = new NextRequest("http://localhost/api/v1/cron/demo-expiry", {
       headers: { authorization: "Bearer invalid" },
     });
+    const { GET: getDemoExpiry } = await import("@/app/api/v1/cron/demo-expiry/route");
     const res = await getDemoExpiry(req);
     expect(res.status).toBe(403);
   });
 
   it("cron /api/v1/cron/demo-expiry skips execution when demo provisioning is disabled", async () => {
-    vi.spyOn(safety, "demoProvisioningEnabled").mockReturnValueOnce(false);
+    const { GET: getDemoExpiry } = await import("@/app/api/v1/cron/demo-expiry/route");
     const req = new NextRequest("http://localhost/api/v1/cron/demo-expiry", {
       headers: { authorization: "Bearer cron_secret_test_12345" },
     });
