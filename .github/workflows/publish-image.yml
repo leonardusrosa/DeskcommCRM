@@ -189,15 +189,19 @@ jobs:
           - name: deskcommcrm
             dockerfile: Dockerfile
             title: DeskcommCRM
+            platforms: linux/amd64,linux/arm64
           - name: deskcomm-worker
             dockerfile: Dockerfile.worker
             title: DeskcommCRM worker
+            platforms: linux/amd64
           - name: deskcomm-scheduler
             dockerfile: Dockerfile.scheduler
             title: DeskcommCRM scheduler
+            platforms: linux/amd64
           - name: deskcomm-voice-agent
             dockerfile: Dockerfile.voice-agent
             title: DeskcommCRM voice agent
+            platforms: linux/amd64
 
     steps:
       - uses: actions/checkout@v7
@@ -262,6 +266,12 @@ jobs:
           labels: |
             org.opencontainers.image.title=${{ matrix.title }}
 
+      - name: Set up QEMU for ARM64 app build
+        if: contains(matrix.platforms, 'linux/arm64')
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -270,8 +280,9 @@ jobs:
         with:
           context: .
           file: ${{ matrix.dockerfile }}
-          # linux/amd64: o VPS HostGator e a imagem do WAHA são amd64.
-          platforms: linux/amd64
+          # O app também atende Phoenix (Oracle ARM64); serviços de fundo
+          # continuam amd64 até haver host ARM64 que precise deles.
+          platforms: ${{ matrix.platforms }}
           # PR de fork não tem permissão de escrita no GHCR, e publicar imagem
           # de código não revisado seria pior que não gatear. Em PR: constrói
           # (que é o gate) e descarta.
@@ -318,8 +329,25 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Set up QEMU for ARM64 build gate
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v4
+
+      - name: Build ARM64 da imagem do app (sem push)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/arm64
+          push: false
+          build-args: |
+            APP_VERSION=smoke-arm64
+          cache-from: type=gha,scope=deskcommcrm-arm64
+          cache-to: type=gha,mode=max,scope=deskcommcrm-arm64
 
       - name: Build local da imagem do app (sem push)
         uses: docker/build-push-action@v7
