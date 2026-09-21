@@ -29,8 +29,15 @@ permissions:
   contents: read
 
 jobs:
+  fork-sem-release:
+    if: github.repository != 'melgarafael/DeskcommCRM'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Release automation belongs to upstream
+        run: echo "release workflow intentionally disabled in fork ${GITHUB_REPOSITORY}"
+
   abrir-pr-de-release:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.repository == 'melgarafael/DeskcommCRM' && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -87,7 +94,7 @@ jobs:
             --title "Release ${VERSAO}" --body-file /tmp/corpo.md
 
   cortar-tag:
-    if: github.event_name == 'push'
+    if: github.repository == 'melgarafael/DeskcommCRM' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
