@@ -1,42 +1,49 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import type { DemoCountry } from "@/lib/demo/types";
 
 interface CreatedDemo {
-  ownerEmail: string;
-  password: string;
+  autoLogin: boolean;
+  launchUrl: string;
   clinicName: string;
+  country: DemoCountry;
   expiresInHours: number;
-  loginUrl: string;
+  fallbackCredentials?: {
+    ownerEmail: string;
+    password: string;
+  };
 }
 
 export function useDemoRequest(initialCountry: DemoCountry = "CO") {
   const [country, setCountry] = useState<DemoCountry>(initialCountry);
-  const [company, setCompany] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loadingCountry, setLoadingCountry] = useState<DemoCountry | null>(null);
   const [created, setCreated] = useState<CreatedDemo | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    setLoading(true);
+  const launch = async (nextCountry: DemoCountry) => {
+    setCountry(nextCountry);
+    setLoadingCountry(nextCountry);
+    setCreated(null);
     setError(null);
     try {
       const response = await fetch("/api/demo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ country, company: company.trim() || undefined }),
+        body: JSON.stringify({ country: nextCountry }),
       });
       const json = await response.json();
       if (!response.ok || !json.success) throw new Error(json.error || "Unable to create demo.");
-      setCreated(json.data as CreatedDemo);
+
+      const demo = json.data as CreatedDemo;
+      setCreated(demo);
+      if (demo.autoLogin) window.location.assign(demo.launchUrl || "/app");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create demo.");
     } finally {
-      setLoading(false);
+      setLoadingCountry(null);
     }
   };
 
-  return { country, setCountry, company, setCompany, loading, created, error, submit };
+  return { country, loadingCountry, created, error, launch };
 }
