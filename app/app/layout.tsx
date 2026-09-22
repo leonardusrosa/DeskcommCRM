@@ -23,6 +23,7 @@ import { listarConexoesCaidas, type ConexaoCaida } from "@/lib/channels/health";
 import { VoiceCallProvider } from "@/components/voice/VoiceCallContext";
 import { ProvedorDaOcupacaoDoRodape } from "@/lib/ui/rodape-ocupado";
 import { acessoFoiRevogado } from "@/lib/auth/vinculo-revogado";
+import { demoSessionContextFromSettings, type DemoSessionContext } from "@/lib/demo/runtime";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await loadAuthUser();
@@ -60,6 +61,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   let conexoesCaidas: ConexaoCaida[] = [];
   let enrolled = false;
   let needsMfaGate = false;
+  let demoContext: (DemoSessionContext & { clinicName: string }) | null = null;
 
   if (activeOrg) {
     const admin = createAdminClient();
@@ -104,6 +106,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ]);
 
     const orgRow = orgRes.data;
+    const demo = demoSessionContextFromSettings(orgRow?.settings);
+    if (demo) demoContext = { ...demo, clinicName: activeOrg.name };
     conexoesCaidas = conexoes;
     enrolled = isEnrolled;
     needsMfaGate = mfaRequired;
@@ -200,6 +204,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <AppShell
           sidebarCollapsed={collapsed}
           podeAtender={Boolean(activeOrg && roleAtLeast(activeOrg.role, "agent"))}
+          demoContext={demoContext}
         >
           {children}
         </AppShell>

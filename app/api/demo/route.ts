@@ -2,7 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { getDentalDemoTemplate } from "@/lib/demo/templates";
 import { provisionDentalDemo } from "@/lib/demo/provision";
+import { establishDemoSession } from "@/lib/demo/launch";
+import { cleanupDemoOrganization } from "@/lib/demo/cleanup";
 import { consumeDemoProvisionAttempt } from "@/lib/demo/rate-limit";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 const schema = z.object({
   country: z.enum(["CO", "MX", "ES", "PT"]),
@@ -42,13 +46,31 @@ export async function POST(req: NextRequest) {
 
   try {
     const demo = await provisionDentalDemo(template, parsed.data.company);
+    const admin = createAdminClient();
+
+    try {
+      const sessionClient = await createClient();
+      await establishDemoSession(admin, sessionClient, demo);
+    } catch (launchError) {
+      await cleanupDemoOrganization(admin, demo.tenantId).catch((cleanupError) => {
+        console.error("[demo] failed to rollback launch", {
+          tenantId: demo.tenantId,
+          message: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+        });
+      });
+      throw launchError;
+    }
+
+    // Deliberately return no credential, OTP, magic-link token or owner email.
+    // The auth cookie has already been written by establishDemoSession().
     return NextResponse.json({
       success: true,
       data: {
-        ...demo,
+        clinicName: demo.clinicName,
+        country: demo.country,
         syntheticData: true,
         expiresInHours: 48,
-        loginUrl: "/login",
+        launchUrl: "/app",
       },
     });
   } catch (error) {

@@ -9,6 +9,8 @@ import { useInboundCallAlerts } from "@/hooks/calls/useInboundCallAlerts";
 import { useCrmAlerts } from "@/hooks/notifications/useCrmAlerts";
 import { useNotifyOpenFromServiceWorker } from "@/lib/notifications/notify_open";
 import { estiloDaReserva, useOcupacaoDoRodape } from "@/lib/ui/rodape-ocupado";
+import { DemoExperienceBar } from "@/components/demo/DemoExperienceBar";
+import type { DemoSessionContext } from "@/lib/demo/runtime";
 
 interface AppShellProps {
   sidebarCollapsed: boolean;
@@ -21,10 +23,11 @@ interface AppShellProps {
    * 403 a cada minuto em nome de ninguém.
    */
   podeAtender: boolean;
+  demoContext?: (DemoSessionContext & { clinicName: string }) | null;
   children: ReactNode;
 }
 
-export function AppShell({ sidebarCollapsed, podeAtender, children }: AppShellProps) {
+export function AppShell({ sidebarCollapsed, podeAtender, demoContext = null, children }: AppShellProps) {
   useInboundMessageAlerts();
   useInboundCallAlerts();
   useCrmAlerts();
@@ -65,6 +68,7 @@ export function AppShell({ sidebarCollapsed, podeAtender, children }: AppShellPr
         cima da lista.
       */}
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+        {demoContext ? <DemoExperienceBar {...demoContext} /> : null}
         <TopBar />
         {/*
           O RODAPÉ DESCONTA O QUE AS PEÇAS FIXAS OCUPAM (issue #1305).
