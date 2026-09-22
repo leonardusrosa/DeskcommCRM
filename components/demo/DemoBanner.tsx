@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface DemoContext {
   country: string;
@@ -33,10 +33,8 @@ export function DemoBanner() {
     return () => window.clearInterval(id);
   }, []);
 
-  const remaining = useMemo(
-    () => (context ? remainingLabel(context.expiresAt) : ""),
-    [context, tick],
-  );
+  const remaining = context ? remainingLabel(context.expiresAt) : "";
+  void tick;
 
   if (!context) return null;
 
