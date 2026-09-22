@@ -37,7 +37,16 @@ export function useDemoRequest(initialCountry: DemoCountry = "CO") {
 
       const demo = json.data as CreatedDemo;
       setCreated(demo);
-      if (demo.autoLogin) window.location.assign(demo.launchUrl || "/app");
+      if (demo.autoLogin) {
+        window.sessionStorage.setItem(
+          "deskcomm_demo_context",
+          JSON.stringify({
+            country: demo.country,
+            expiresAt: new Date(Date.now() + demo.expiresInHours * 60 * 60 * 1000).toISOString(),
+          }),
+        );
+        window.location.assign(demo.launchUrl || "/app");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create demo.");
     } finally {
