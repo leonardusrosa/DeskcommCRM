@@ -1,0 +1,110 @@
+# Isolated lead-facing demo stack for the Phoenix VPS.
+#
+# It intentionally does NOT start WAHA, the agent worker, or another reverse
+# proxy. Synthetic demo channels never reach a real WhatsApp provider.
+#
+# Start only after verifying that the existing Easypanel overlay network is
+# attachable (see docs/deploy-demo-phoenix.md):
+#   docker compose --env-file .env.demo -f docker-compose.demo.yml up -d
+#
+# Only the app is reachable from the proxy network and localhost. Redis/SRH stay
+# on the private demo network.
+
+name: deskcomm-demo
+
+x-logging: &demo-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  app:
+    image: ${DEMO_APP_IMAGE:-ghcr.io/leonardusrosa/deskcommcrm:latest}
+    pull_policy: ${DEMO_APP_PULL_POLICY:-always}
+    restart: unless-stopped
+    mem_limit: 768m
+    env_file: .env.demo
+    environment:
+      NODE_ENV: production
+      DEMO_PROVISIONING_ENABLED: "true"
+      UPSTASH_REDIS_REST_URL: http://srh:80
+      # Synthetic demo sessions never resolve the transport adapter. Keeping
+      # these production-required values on loopback makes accidental transport
+      # resolution fail closed instead of reaching production WAHA/Meta.
+      WAHA_API_BASE_URL: http://127.0.0.1:9
+      WAHA_WEBHOOK_BASE_URL: http://127.0.0.1:9
+    depends_on:
+      srh:
+        condition: service_started
+    ports:
+      - "127.0.0.1:${DEMO_APP_PORT:-3300}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').connect(3000,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    logging: *demo-logging
+    networks:
+      demo:
+      proxy:
+        aliases:
+          - deskcomm-demo-app
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    mem_limit: 128m
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    logging: *demo-logging
+    networks: [demo]
+
+  srh:
+    image: hiett/serverless-redis-http@sha256:5b0bb9239fce53abf87b2018a7a0deb9ec7bd900c5360738fe5fbeeb426f9150
+    restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: ${SRH_TOKEN}
+      SRH_CONNECTION_STRING: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    logging: *demo-logging
+    networks: [demo]
+
+  demo-expiry:
+    image: alpine:3.20
+    restart: unless-stopped
+    mem_limit: 32m
+    environment:
+      INTERNAL_CRON_SECRET: ${INTERNAL_CRON_SECRET}
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        sleep 60
+        while true; do
+          wget -qO- \
+            --header="Authorization: Bearer $$INTERNAL_CRON_SECRET" \
+            http://app:3000/api/v1/cron/demo-expiry >/dev/null || true
+          sleep 3600
+        done
+    depends_on:
+      app:
+        condition: service_healthy
+    logging: *demo-logging
+    networks: [demo]
+
+networks:
+  demo:
+    driver: bridge
+  proxy:
+    external: true
+    name: ${DEMO_PROXY_NETWORK:-easypanel}
