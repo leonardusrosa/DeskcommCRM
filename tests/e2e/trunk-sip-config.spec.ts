@@ -145,7 +145,7 @@ test.describe("trunk SIP — permissão e conteúdo do bloco pjsip.conf", () => 
     // usuário copia para o Asterisk.
     const corpo = await page.locator("body").evaluate((body) => {
       const clone = body.cloneNode(true) as HTMLElement;
-      clone.querySelectorAll("pre, code").forEach((node) => node.remove());
+      clone.querySelectorAll("pre, code, script, style, template, noscript").forEach((node) => node.remove());
       return clone.innerText.trim();
     });
     expect(corpo, "a tela mostra o que parece uma chave de tradução crua").not.toMatch(
