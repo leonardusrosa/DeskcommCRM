@@ -85,5 +85,5 @@ export interface DemoProvisionSummary {
   clinicName: string;
   country: DemoCountry;
   ownerEmail: string;
-  password: string;
+  ownerUserId: string;
 }
