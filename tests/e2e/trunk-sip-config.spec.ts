@@ -139,7 +139,15 @@ test.describe("trunk SIP — permissão e conteúdo do bloco pjsip.conf", () => 
     expect(texto, "o bloco não declara um endpoint [nome]").toMatch(/^\[[^\]]+\]/);
 
     // ── QUALIDADE DE TELA ────────────────────────────────────────────────
-    const corpo = (await page.locator("body").innerText()).trim();
+    // O bloco <pre> contém configuração de máquina (hosts, URIs e nomes de
+    // endpoint), que pode legitimamente se parecer com uma chave i18n. A guarda
+    // de qualidade deve inspecionar a prosa da interface, não o payload que o
+    // usuário copia para o Asterisk.
+    const corpo = await page.locator("body").evaluate((body) => {
+      const clone = body.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll("pre, code").forEach((node) => node.remove());
+      return clone.innerText.trim();
+    });
     expect(corpo, "a tela mostra o que parece uma chave de tradução crua").not.toMatch(
       /\b[a-z]+(?:[._][a-z]+){2,}\b/,
     );
