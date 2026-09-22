@@ -23,10 +23,10 @@ export function DemoBanner() {
 
   useEffect(() => {
     try {
-      const raw = window.sessionStorage.getItem("deskcomm_demo_context");
+      const raw = window.sessionStorage.getItem("synthetic_demo_context");
       if (raw) setContext(JSON.parse(raw) as DemoContext);
     } catch {
-      window.sessionStorage.removeItem("deskcomm_demo_context");
+      window.sessionStorage.removeItem("synthetic_demo_context");
     }
 
     const id = window.setInterval(() => setTick((value) => value + 1), 60_000);
