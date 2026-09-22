@@ -30,7 +30,7 @@ const COPY = {
     crm: "Pipeline y contactos",
     inbox: "Conversaciones",
     agenda: "Agenda",
-    opening: "Abriendo Deskcomm…",
+    opening: "Abriendo",
     synthetic: "Solo datos sintéticos · expira automáticamente en 48 h",
   },
   pt: {
@@ -44,7 +44,7 @@ const COPY = {
     crm: "Funil e contactos",
     inbox: "Conversas",
     agenda: "Agenda",
-    opening: "A abrir o Deskcomm…",
+    opening: "A abrir",
     synthetic: "Apenas dados sintéticos · expira automaticamente em 48 h",
   },
 } as const;
@@ -77,7 +77,7 @@ export function DemoRequestForm({
               </div>
             ))}
           </div>
-          <p className="text-center text-sm font-medium text-muted-foreground">{copy.opening}</p>
+          <p className="text-center text-sm font-medium text-muted-foreground">{copy.opening} {brandName}…</p>
         </CardContent>
       </Card>
     );
