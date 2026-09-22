@@ -23,11 +23,11 @@ interface AppShellProps {
    * 403 a cada minuto em nome de ninguém.
    */
   podeAtender: boolean;
-  demoContext: (DemoSessionContext & { clinicName: string }) | null;
+  demoContext?: (DemoSessionContext & { clinicName: string }) | null;
   children: ReactNode;
 }
 
-export function AppShell({ sidebarCollapsed, podeAtender, demoContext, children }: AppShellProps) {
+export function AppShell({ sidebarCollapsed, podeAtender, demoContext = null, children }: AppShellProps) {
   useInboundMessageAlerts();
   useInboundCallAlerts();
   useCrmAlerts();
