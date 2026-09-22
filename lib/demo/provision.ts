@@ -75,7 +75,7 @@ export async function provisionDentalDemo(
       clinicName: requestedCompany?.trim() || template.orgName,
       country: template.country,
       ownerEmail: demoEmail(template.users[0]!.email, token),
-      password,
+      ownerUserId: createdUsers.users.get("owner")!.id,
     };
   } catch (error) {
     if (orgId) await admin.from("organizations").delete().eq("id", orgId);
