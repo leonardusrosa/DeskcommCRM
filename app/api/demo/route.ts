@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getDentalDemoTemplate } from "@/lib/demo/templates";
 import { provisionDentalDemo } from "@/lib/demo/provision";
 import { consumeDemoProvisionAttempt } from "@/lib/demo/rate-limit";
+import { createClient } from "@/lib/supabase/server";
 
 const schema = z.object({
   country: z.enum(["CO", "MX", "ES", "PT"]),
@@ -42,13 +43,50 @@ export async function POST(req: NextRequest) {
 
   try {
     const demo = await provisionDentalDemo(template, parsed.data.company);
+
+    // Demo visitors should not need to copy disposable credentials. Establish
+    // the just-created synthetic owner's session server-side and let the
+    // browser redirect straight into the app. Credentials are returned only as
+    // a fallback if GoTrue cannot establish the session.
+    const supabase = await createClient();
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: demo.ownerEmail,
+      password: demo.password,
+    });
+
+    if (!authError && authData.user) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          autoLogin: true,
+          launchUrl: "/app",
+          clinicName: demo.clinicName,
+          country: demo.country,
+          syntheticData: true,
+          expiresInHours: 48,
+        },
+      });
+    }
+
+    console.warn("[demo] provisioned but automatic session handoff failed", {
+      tenantId: demo.tenantId,
+      country: demo.country,
+      reason: authError?.message ?? "missing_user",
+    });
+
     return NextResponse.json({
       success: true,
       data: {
-        ...demo,
+        autoLogin: false,
+        launchUrl: "/login",
+        clinicName: demo.clinicName,
+        country: demo.country,
         syntheticData: true,
         expiresInHours: 48,
-        loginUrl: "/login",
+        fallbackCredentials: {
+          ownerEmail: demo.ownerEmail,
+          password: demo.password,
+        },
       },
     });
   } catch (error) {

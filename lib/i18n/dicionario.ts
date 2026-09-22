@@ -38,6 +38,18 @@ import { traduzirPtPt } from "./pt-pt";
 type Traducoes = Record<string, Partial<Record<Exclude<Idioma, "pt-BR">, string>>>;
 
 export const DICIONARIO: Traducoes = {
+  "O acesso automático não pôde ser concluído. Use estas credenciais temporárias para entrar.": { es: "El acceso automático no pudo completarse. Utilice estas credenciales temporales para entrar." },
+  "Escolha um mercado e entre na demonstração": { es: "Elija un mercado y entre en la demostración" },
+  "Sem cadastro, sem conectar WhatsApp e sem dados reais. Criamos uma clínica sintética e abrimos o sistema automaticamente.": { es: "Sin registro, sin conectar WhatsApp y sin datos reales. Creamos una clínica sintética y abrimos el sistema automáticamente." },
+  "Preparando seu ambiente de demonstração…": { es: "Preparando su entorno de demostración…" },
+  "Clínica e equipe": { es: "Clínica y equipo" },
+  "Funil de CRM": { es: "Embudo de CRM" },
+  "Conversas sintéticas": { es: "Conversaciones sintéticas" },
+  "Agenda e pacientes fictícios": { es: "Agenda y pacientes ficticios" },
+  "Assim que estiver pronto, abriremos": { es: "En cuanto esté listo, abriremos" },
+  "automaticamente.": { es: "automáticamente." },
+  "Cada ambiente é isolado, contém somente dados sintéticos e expira automaticamente em 48 horas.": { es: "Cada entorno es aislado, contiene únicamente datos sintéticos y expira automáticamente en 48 horas." },
+
   "Sobre a empresa": { es: "Sobre la empresa" },
   "Não foi possível carregar o enriquecimento.": { es: "No se pudo cargar el enriquecimiento." },
   "Sem dados de enriquecimento para este contato.": { es: "Sin datos de enriquecimiento para este contacto." },
