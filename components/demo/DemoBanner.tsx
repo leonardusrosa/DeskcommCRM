@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+interface DemoContext {
+  country: string;
+  expiresAt: string;
+}
+
 function remainingLabel(expiresAt: string): string {
   const remainingMs = Math.max(0, new Date(expiresAt).getTime() - Date.now());
   const totalMinutes = Math.floor(remainingMs / 60_000);
@@ -12,26 +17,33 @@ function remainingLabel(expiresAt: string): string {
   return `${hours}h ${minutes}m`;
 }
 
-export function DemoBanner({
-  country,
-  expiresAt,
-}: {
-  country: string;
-  expiresAt: string;
-}) {
+export function DemoBanner() {
+  const [context, setContext] = useState<DemoContext | null>(null);
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
+    try {
+      const raw = window.sessionStorage.getItem("deskcomm_demo_context");
+      if (raw) setContext(JSON.parse(raw) as DemoContext);
+    } catch {
+      window.sessionStorage.removeItem("deskcomm_demo_context");
+    }
+
     const id = window.setInterval(() => setTick((value) => value + 1), 60_000);
     return () => window.clearInterval(id);
   }, []);
 
-  const remaining = useMemo(() => remainingLabel(expiresAt), [expiresAt, tick]);
+  const remaining = useMemo(
+    () => (context ? remainingLabel(context.expiresAt) : ""),
+    [context, tick],
+  );
+
+  if (!context) return null;
 
   return (
     <div className="border-b border-accent/20 bg-accent-soft px-4 py-2 text-xs text-foreground">
       <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center gap-x-4 gap-y-2">
-        <span className="font-semibold">Synthetic Demo · {country}</span>
+        <span className="font-semibold">Synthetic Demo · {context.country}</span>
         <span className="text-muted-foreground">Fictional data · expires in {remaining}</span>
         <nav className="ml-auto flex flex-wrap items-center gap-3 font-medium">
           <Link href="/app/inbox" className="hover:text-accent">Inbox</Link>
