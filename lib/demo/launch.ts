@@ -18,7 +18,7 @@ export async function establishDemoSession(
     email: demo.ownerEmail,
   });
 
-  const tokenHash = link?.properties?.hashed_token;
+  const tokenHash = (link?.properties as { hashed_token?: string } | undefined)?.hashed_token;
   if (linkError || !tokenHash) {
     throw new Error(`Demo login handoff: ${linkError?.message || "token generation failed"}`);
   }
