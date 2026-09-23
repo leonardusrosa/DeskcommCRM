@@ -24,7 +24,7 @@ export type PaletteDef = {
   name: string;
   description: string;
   accent: ColorScale;
-  // Theme neutrals — classic light, warm high-contrast dark.
+  // Neutral ruler stays canonical for accent/branding math; page surfaces below define each theme.
   neutralLight: ColorScale;
   neutralDark: ColorScale;
   states: { light: StateColors; dark: StateColors };
