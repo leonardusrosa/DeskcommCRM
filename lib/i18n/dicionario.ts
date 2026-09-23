@@ -38,6 +38,23 @@ import { traduzirPtPt } from "./pt-pt";
 type Traducoes = Record<string, Partial<Record<Exclude<Idioma, "pt-BR">, string>>>;
 
 export const DICIONARIO: Traducoes = {
+  "Tour da demonstração": { es: "Visita guiada de la demostración" },
+  "Inbox da clínica": { es: "Inbox de la clínica" },
+  "Abra uma conversa fictícia e veja como a equipe atende pelo WhatsApp.": { es: "Abra una conversación ficticia y vea cómo el equipo atiende por WhatsApp." },
+  "Abrir Inbox": { es: "Abrir Inbox" },
+  "Funil de tratamentos": { es: "Embudo de tratamientos" },
+  "Acompanhe as oportunidades e veja como os pacientes avançam pelo CRM.": { es: "Siga las oportunidades y vea cómo los pacientes avanzan por el CRM." },
+  "Abrir CRM": { es: "Abrir CRM" },
+  "Agenda da equipe": { es: "Agenda del equipo" },
+  "Veja os agendamentos sintéticos distribuídos entre os profissionais da clínica.": { es: "Vea las citas sintéticas distribuidas entre los profesionales de la clínica." },
+  "Abrir Agenda": { es: "Abrir Agenda" },
+  "Equipe da clínica": { es: "Equipo de la clínica" },
+  "Conheça os operadores sintéticos e como o atendimento é dividido entre funções.": { es: "Conozca a los operadores sintéticos y cómo se reparte la atención entre funciones." },
+  "Abrir Equipe": { es: "Abrir Equipo" },
+  "Ignorar visita guiada": { es: "Omitir visita guiada" },
+  "Explorar livremente": { es: "Explorar libremente" },
+  "Reiniciar visita guiada": { es: "Reiniciar visita guiada" },
+
   "O acesso automático não pôde ser concluído. Use estas credenciais temporárias para entrar.": { es: "El acceso automático no pudo completarse. Utilice estas credenciales temporales para entrar." },
   "Escolha um mercado e entre na demonstração": { es: "Elija un mercado y entre en la demostración" },
   "Sem cadastro, sem conectar WhatsApp e sem dados reais. Criamos uma clínica sintética e abrimos o sistema automaticamente.": { es: "Sin registro, sin conectar WhatsApp y sin datos reales. Creamos una clínica sintética y abrimos el sistema automáticamente." },
