@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { traduzir } from "@/lib/i18n/dicionario";
 
@@ -29,10 +28,9 @@ function clampStep(step: number, total: number): number {
 }
 
 export function DemoTour() {
-  const pathname = usePathname();
-  const router = useRouter();
   const [context, setContext] = useState<DemoContext | null>(null);
   const [tourState, setTourState] = useState<TourState | null>(null);
+  const [currentPath, setCurrentPath] = useState<string | null>(null);
 
   const idioma = context?.country === "PT" ? "pt-PT" : "es";
   const t = (texto: string) => traduzir(texto, idioma);
@@ -71,6 +69,7 @@ export function DemoTour() {
 
       const parsedContext = JSON.parse(rawContext) as DemoContext;
       setContext(parsedContext);
+      setCurrentPath(window.location.pathname);
 
       const rawTour = window.sessionStorage.getItem(DEMO_TOUR_KEY);
       if (!rawTour) {
@@ -93,6 +92,7 @@ export function DemoTour() {
       window.sessionStorage.removeItem(DEMO_TOUR_KEY);
       setContext(null);
       setTourState(null);
+      setCurrentPath(null);
     }
   }, []);
 
@@ -105,12 +105,13 @@ export function DemoTour() {
 
   const stepIndex = clampStep(tourState.step, steps.length);
   const step = steps[stepIndex]!;
-  const onTargetRoute = pathname === step.route || pathname.startsWith(`${step.route}/`);
+  const onTargetRoute =
+    currentPath === step.route || currentPath?.startsWith(`${step.route}/`) === true;
   const isLast = stepIndex === steps.length - 1;
 
   const goNext = () => {
     if (!onTargetRoute) {
-      router.push(step.route);
+      window.location.assign(step.route);
       return;
     }
 
@@ -121,14 +122,14 @@ export function DemoTour() {
 
     const nextIndex = stepIndex + 1;
     persist({ status: "active", step: nextIndex });
-    router.push(steps[nextIndex]!.route);
+    window.location.assign(steps[nextIndex]!.route);
   };
 
   const goBack = () => {
     if (stepIndex === 0) return;
     const previousIndex = stepIndex - 1;
     persist({ status: "active", step: previousIndex });
-    router.push(steps[previousIndex]!.route);
+    window.location.assign(steps[previousIndex]!.route);
   };
 
   const skip = () => {
