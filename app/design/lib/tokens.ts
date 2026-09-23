@@ -1,5 +1,5 @@
 // Design tokens for DeskcommCRM showcase.
-// "Soft-tech / calmo" — neutros desaturados (greige/warm-gray), accent não-saturado.
+// "Soft-tech / calmo" — light clássico neutro, dark quente de alto contraste, accent não-saturado.
 // 5-Constraint Rule applied: Shape, Color (exact hex), Typography, Motion, Layout.
 
 export type PaletteId = "sage" | "clay" | "mist" | "plum" | "olive";
@@ -24,7 +24,7 @@ export type PaletteDef = {
   name: string;
   description: string;
   accent: ColorScale;
-  // Greige/warm-gray neutrals — explicitly NOT slate/zinc.
+  // Neutral ruler stays canonical for accent/branding math; page surfaces below define each theme.
   neutralLight: ColorScale;
   neutralDark: ColorScale;
   states: { light: StateColors; dark: StateColors };
@@ -62,8 +62,8 @@ export const PALETTES: Record<PaletteId, PaletteDef> = {
       dark:  { success: "#82a077", warning: "#d09455", error: "#c87263", info: "#7da9bf" },
     },
     surfaces: {
-      light: { bg: "#faf9f6", surface: "#ffffff", surfaceElevated: "#f5f3ee", text: "#1c1a16", textMuted: "#5d594f", border: "#e7e3da" },
-      dark:  { bg: "#161510", surface: "#1d1c17", surfaceElevated: "#272620", text: "#f5f4ef", textMuted: "#8e8b7f", border: "#33312a" },
+      light: { bg: "#ffffff", surface: "#ffffff", surfaceElevated: "#f5f5f5", text: "#171717", textMuted: "#525252", border: "#e5e5e5" },
+      dark:  { bg: "#161510", surface: "#1d1c17", surfaceElevated: "#272620", text: "#f7f6f2", textMuted: "#b8b4a9", border: "#666159" },
     },
   },
   clay: {

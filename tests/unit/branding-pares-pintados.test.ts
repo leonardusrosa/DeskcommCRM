@@ -346,9 +346,9 @@ describe("controle positivo — o produto sem marca não pode se mexer", () => {
     expect(cor.derivada?.escuro.deslocamento).toBe(0);
 
     const p = pintadosDaSemente("#506d48");
-    // Claro: os dois números que `contraste.ts` documenta como medidos à mão.
-    expect(foco(p.claro, "--color-bg")).toBeCloseTo(3.79, 2);
-    expect(foco(p.claro, "--color-surface-elevated")).toBeCloseTo(3.6, 2);
+    // Claro: controle positivo recalculado sobre as superfícies clássicas #fff/#f5f5f5.
+    expect(foco(p.claro, "--color-bg")).toBeCloseTo(4.0, 2);
+    expect(foco(p.claro, "--color-surface-elevated")).toBeCloseTo(3.66, 2);
     // Escuro: 6,30 e 5,22 na rampa DERIVADA da semente; os literais do
     // `globals.css` (`#82a077`) dão 6,31 e 5,23 — a rampa reproduz a Sage com
     // Δ ≤ 2/255 por canal, e a diferença de 0,01 é esse arredondamento.
@@ -372,13 +372,13 @@ describe("controle positivo — o produto sem marca não pode se mexer", () => {
 
 describe("a navy #0f172a — o defeito que a prova em tela achou", () => {
   it("os quatro números do anel de foco, agora acima do piso", () => {
-    // ANTES (medido no browser, servidor de dev na 3111): claro 10,77 e 10,22;
+    // ANTES da restauração das superfícies clássicas: claro 10,77 e 10,22;
     // escuro 2,86 e 2,37 — os dois de baixo abaixo do piso 3,0, porque o anel
     // pintava `--color-accent-400: #545f77`, o stop CRU. O tema escuro anda -1,
     // então o anel agora pinta `#828a9d`, o stop 300 da rampa da marca.
     const p = pintadosDaSemente("#0f172a");
-    expect(foco(p.claro, "--color-bg")).toBeCloseTo(10.77, 2);
-    expect(foco(p.claro, "--color-surface-elevated")).toBeCloseTo(10.22, 2);
+    expect(foco(p.claro, "--color-bg")).toBeCloseTo(11.33, 2);
+    expect(foco(p.claro, "--color-surface-elevated")).toBeCloseTo(10.4, 2);
     expect(foco(p.escuro, "--color-bg")).toBeCloseTo(5.28, 2);
     expect(foco(p.escuro, "--color-surface-elevated")).toBeCloseTo(4.39, 2);
     for (const superficie of ["--color-bg", "--color-surface-elevated"] as const) {

@@ -45,6 +45,7 @@ export function useDemoRequest(initialCountry: DemoCountry = "CO") {
             expiresAt: new Date(Date.now() + demo.expiresInHours * 60 * 60 * 1000).toISOString(),
           }),
         );
+        window.sessionStorage.removeItem("synthetic_demo_tour_state");
         window.location.assign(demo.launchUrl || "/app");
       }
     } catch (err) {
