@@ -53,6 +53,7 @@ export const DICIONARIO: Traducoes = {
   "Abrir Equipe": { es: "Abrir Equipo" },
   "Ignorar visita guiada": { es: "Omitir visita guiada" },
   "Explorar livremente": { es: "Explorar libremente" },
+  "Próximo": { es: "Siguiente" },
   "Reiniciar visita guiada": { es: "Reiniciar visita guiada" },
 
   "O acesso automático não pôde ser concluído. Use estas credenciais temporárias para entrar.": { es: "El acceso automático no pudo completarse. Utilice estas credenciales temporales para entrar." },
@@ -9164,7 +9165,6 @@ export const DICIONARIO: Traducoes = {
   "Adiciona ou remove marcadores numa conversa, cliente ou oportunidade, para organizar e filtrar a operação depois.": {
     es: "Agrega o quita etiquetas en una conversación, cliente u oportunidad, para organizar y filtrar la operación después.",
   },
-  "Agenda da equipe": { es: "Agenda del equipo" },
   "Agendar um retorno para o cliente": { es: "Agendar un retorno para el cliente" },
   "Altera dados de uma oportunidade de venda: valor do negócio, responsável e informações colhidas na conversa.": {
     es: "Modifica datos de una oportunidad de venta: valor del negocio, responsable e información recogida en la conversación.",
