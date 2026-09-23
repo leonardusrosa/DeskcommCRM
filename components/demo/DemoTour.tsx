@@ -81,9 +81,18 @@ export function DemoTour() {
       }
 
       const parsedTour = JSON.parse(rawTour) as TourState;
+      if (
+        !["active", "completed", "skipped"].includes(parsedTour.status) ||
+        !Number.isInteger(parsedTour.step)
+      ) {
+        throw new Error("invalid demo tour state");
+      }
       setTourState(parsedTour);
     } catch {
+      window.sessionStorage.removeItem(DEMO_CONTEXT_KEY);
       window.sessionStorage.removeItem(DEMO_TOUR_KEY);
+      setContext(null);
+      setTourState(null);
     }
   }, []);
 
@@ -129,12 +138,12 @@ export function DemoTour() {
   return (
     <aside
       className="fixed bottom-4 right-4 z-[60] w-[min(24rem,calc(100vw-2rem))] rounded-xl border bg-background p-4 shadow-lg"
-      aria-label={t("Tour da demonstração")}
+      aria-label={t("Visita guiada da demonstração")}
     >
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-accent">
-            {t("Tour da demonstração")} · {stepIndex + 1}/{steps.length}
+            {t("Visita guiada da demonstração")} · {stepIndex + 1}/{steps.length}
           </p>
           <h2 className="mt-2 text-base font-semibold">{step.title}</h2>
         </div>
