@@ -15,7 +15,7 @@ function bloco(seletor: string): string {
 
 function token(css: string, nome: string): string {
   const escaped = nome.replace(/[.*+?^$()|[\]\\]/g, "\\$&");
-  const match = new RegExp(`^${escaped}:\\s*(#[0-9a-f]{6})\\s*;`, "mi").exec(css);
+  const match = new RegExp(`^\\s*${escaped}:\\s*(#[0-9a-f]{6})\\s*;`, "mi").exec(css);
   if (!match?.[1]) throw new Error(`token ${nome} ausente ou não-hex`);
   return match[1].toLowerCase();
 }
