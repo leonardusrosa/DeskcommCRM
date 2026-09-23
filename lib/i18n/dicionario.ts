@@ -38,7 +38,7 @@ import { traduzirPtPt } from "./pt-pt";
 type Traducoes = Record<string, Partial<Record<Exclude<Idioma, "pt-BR">, string>>>;
 
 export const DICIONARIO: Traducoes = {
-  "Tour da demonstração": { es: "Visita guiada de la demostración" },
+  "Visita guiada da demonstração": { es: "Visita guiada de la demostración" },
   "Inbox da clínica": { es: "Inbox de la clínica" },
   "Abra uma conversa fictícia e veja como a equipe atende pelo WhatsApp.": { es: "Abra una conversación ficticia y vea cómo el equipo atiende por WhatsApp." },
   "Abrir Inbox": { es: "Abrir Inbox" },
