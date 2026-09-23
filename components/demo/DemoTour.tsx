@@ -27,6 +27,15 @@ function clampStep(step: number, total: number): number {
   return Math.min(Math.max(step, 0), Math.max(total - 1, 0));
 }
 
+function isRouteMatching(current: string | null, target: string): boolean {
+  if (!current) return false;
+  if (current === target || current.startsWith(`${target}/`)) return true;
+  if (target === "/app/crm" && (current.startsWith("/app/kanban") || current.startsWith("/app/pipelines"))) {
+    return true;
+  }
+  return false;
+}
+
 export function DemoTour() {
   const [context, setContext] = useState<DemoContext | null>(null);
   const [tourState, setTourState] = useState<TourState | null>(null);
@@ -96,6 +105,27 @@ export function DemoTour() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!context || !tourState || tourState.status !== "active") return;
+
+    const updatePath = () => {
+      if (typeof window !== "undefined") {
+        setCurrentPath((prev) => {
+          const current = window.location.pathname;
+          return prev === current ? prev : current;
+        });
+      }
+    };
+
+    updatePath();
+    window.addEventListener("popstate", updatePath);
+    const interval = window.setInterval(updatePath, 500);
+    return () => {
+      window.removeEventListener("popstate", updatePath);
+      window.clearInterval(interval);
+    };
+  }, [context, tourState]);
+
   const persist = (next: TourState) => {
     window.sessionStorage.setItem(DEMO_TOUR_KEY, JSON.stringify(next));
     setTourState(next);
@@ -105,8 +135,7 @@ export function DemoTour() {
 
   const stepIndex = clampStep(tourState.step, steps.length);
   const step = steps[stepIndex]!;
-  const onTargetRoute =
-    currentPath === step.route || currentPath?.startsWith(`${step.route}/`) === true;
+  const onTargetRoute = isRouteMatching(currentPath, step.route);
   const isLast = stepIndex === steps.length - 1;
 
   const goNext = () => {

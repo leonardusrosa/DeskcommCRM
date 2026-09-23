@@ -78,7 +78,7 @@ export function TeamMembersClient({ currentUserId, canManage }: Props) {
           <TableHeader>
             <TableRow>
               <TableHead>{t("Membro")}</TableHead>
-              <TableHead>Role</TableHead>
+              <TableHead>{t("Papel")}</TableHead>
               <TableHead>{t("Interface")}</TableHead>
               <TableHead>{t("Status")}</TableHead>
               <TableHead>{t("Última atividade")}</TableHead>

@@ -68,6 +68,15 @@ export const DICIONARIO: Traducoes = {
   "automaticamente.": { es: "automáticamente." },
   "Cada ambiente é isolado, contém somente dados sintéticos e expira automaticamente em 48 horas.": { es: "Cada entorno es aislado, contiene únicamente datos sintéticos y expira automáticamente en 48 horas." },
 
+  "Busque empresas e conduza abordagens graduais com IA.": { es: "Busque empresas y realice acercamientos graduales con IA." },
+  "Contas, formas de pagamento e como cada lançamento é classificado.": { es: "Cuentas, formas de pago y cómo se clasifica cada movimiento." },
+  "O vocabulário de etiquetas da empresa: onde cada uma é usada e como renomear, juntar ou excluir.": { es: "El vocabulario de etiquetas de la empresa: dónde se usa cada una y cómo renombrar, combinar o eliminar." },
+  "Credenciais do provedor SIP para chamadas de voz por IA.": { es: "Credenciales del proveedor SIP para llamadas de voz con IA." },
+  "Conecte um banco de dados de outro sistema para o agente consultar em tempo real.": { es: "Conecte una base de datos de otro sistema para que el agente consulte en tiempo real." },
+  "Papel": { es: "Rol" },
+  "Nenhum lead nesta etapa": { es: "Ningún lead en esta etapa" },
+  "Gestão de membros, papéis e atendimento da empresa.": { es: "Gestión de miembros, roles y atención de la empresa." },
+
   "Sobre a empresa": { es: "Sobre la empresa" },
   "Não foi possível carregar o enriquecimento.": { es: "No se pudo cargar el enriquecimiento." },
   "Sem dados de enriquecimento para este contato.": { es: "Sin datos de enriquecimiento para este contacto." },
