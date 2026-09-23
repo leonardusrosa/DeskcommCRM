@@ -143,7 +143,7 @@ export function DemoTour() {
           onClick={skip}
           className="text-xs text-muted-foreground hover:text-foreground"
         >
-          {t("Pular tour")}
+          {t("Ignorar visita guiada")}
         </button>
       </div>
 
