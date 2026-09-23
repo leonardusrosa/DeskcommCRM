@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { traduzir } from "@/lib/i18n/dicionario";
 
 interface DemoContext {
   country: string;
@@ -38,6 +39,16 @@ export function DemoBanner() {
 
   if (!context) return null;
 
+  const idioma = context.country === "PT" ? "pt-PT" : "es";
+  const t = (texto: string) => traduzir(texto, idioma);
+  const restartTour = () => {
+    window.sessionStorage.setItem(
+      "synthetic_demo_tour_state",
+      JSON.stringify({ status: "active", step: 0 }),
+    );
+    window.location.assign("/app/inbox");
+  };
+
   return (
     <div className="border-b border-accent/20 bg-accent-soft px-4 py-2 text-xs text-foreground">
       <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center gap-x-4 gap-y-2">
@@ -47,6 +58,9 @@ export function DemoBanner() {
           <Link href="/app/inbox" className="hover:text-accent">Inbox</Link>
           <Link href="/app/crm" className="hover:text-accent">CRM</Link>
           <Link href="/app/agenda" className="hover:text-accent">Agenda</Link>
+          <button type="button" onClick={restartTour} className="hover:text-accent">
+            {t("Reiniciar visita guiada")}
+          </button>
           <Link href="/demo" className="text-accent hover:underline">Switch market</Link>
         </nav>
       </div>
