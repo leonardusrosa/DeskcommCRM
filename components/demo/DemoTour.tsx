@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { traduzir } from "@/lib/i18n/dicionario";
@@ -37,8 +37,7 @@ export function DemoTour() {
   const idioma = context?.country === "PT" ? "pt-PT" : "es";
   const t = (texto: string) => traduzir(texto, idioma);
 
-  const steps = useMemo<TourStep[]>(
-    () => [
+  const steps: TourStep[] = [
       {
         route: "/app/inbox",
         title: t("Inbox da clínica"),
@@ -63,9 +62,7 @@ export function DemoTour() {
         body: t("Conheça os operadores sintéticos e como o atendimento é dividido entre funções."),
         action: t("Abrir Equipe"),
       },
-    ],
-    [idioma],
-  );
+  ];
 
   useEffect(() => {
     try {
