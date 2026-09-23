@@ -63,18 +63,18 @@
   --color-accent-soft: var(--color-accent-100);
   --color-accent-hover: var(--color-accent-700);
 
-  /* Neutrals — classic neutral (11 stops, light) */
-  --color-neutral-50:  #ffffff;
-  --color-neutral-100: #f5f5f5;
-  --color-neutral-200: #e5e5e5;
-  --color-neutral-300: #d4d4d4;
-  --color-neutral-400: #a3a3a3;
-  --color-neutral-500: #737373;
-  --color-neutral-600: #525252;
-  --color-neutral-700: #404040;
-  --color-neutral-800: #262626;
-  --color-neutral-900: #171717;
-  --color-neutral-950: #0a0a0a;
+  /* Neutrals — canonical ruler (11 stops, light) */
+  --color-neutral-50:  #faf9f6;
+  --color-neutral-100: #f3f1ec;
+  --color-neutral-200: #e7e3da;
+  --color-neutral-300: #d2cdbf;
+  --color-neutral-400: #a9a395;
+  --color-neutral-500: #7d786c;
+  --color-neutral-600: #5d594f;
+  --color-neutral-700: #46433b;
+  --color-neutral-800: #2e2c26;
+  --color-neutral-900: #1c1a16;
+  --color-neutral-950: #0e0d0a;
 
   /* States (light) */
   --color-success: #5a8a5f;
@@ -264,16 +264,16 @@
   --color-accent-soft: var(--color-accent-100);
   --color-accent-hover: var(--color-accent-700);
   --color-neutral-50: #faf9f6;
-  --color-neutral-100: #f5f5f5;
-  --color-neutral-200: #e5e5e5;
-  --color-neutral-300: #d4d4d4;
-  --color-neutral-400: #a3a3a3;
-  --color-neutral-500: #737373;
-  --color-neutral-600: #525252;
-  --color-neutral-700: #404040;
-  --color-neutral-800: #262626;
-  --color-neutral-900: #171717;
-  --color-neutral-950: #0a0a0a;
+  --color-neutral-100: #f3f1ec;
+  --color-neutral-200: #e7e3da;
+  --color-neutral-300: #d2cdbf;
+  --color-neutral-400: #a9a395;
+  --color-neutral-500: #7d786c;
+  --color-neutral-600: #5d594f;
+  --color-neutral-700: #46433b;
+  --color-neutral-800: #2e2c26;
+  --color-neutral-900: #1c1a16;
+  --color-neutral-950: #0e0d0a;
   --color-success: #5a8a5f;
   --color-success-bg: rgba(90, 138, 95, 0.12);
   --color-success-fg: #41673f;
@@ -327,10 +327,10 @@
 }
 
 [data-theme="dark"] {
-  /* Surfaces (dark — stronger separation) */
-  --color-bg: #10100e;
-  --color-surface: #1a1916;
-  --color-surface-elevated: #2a2823;
+  /* Surfaces (dark — canonical warm base) */
+  --color-bg: #161510;
+  --color-surface: #1d1c17;
+  --color-surface-elevated: #272620;
   --color-overlay: rgba(0, 0, 0, 0.68);
 
   /* Text (dark) */
@@ -359,18 +359,18 @@
   --color-accent-soft: rgba(130, 160, 119, 0.16);
   --color-accent-hover: var(--color-accent-300);
 
-  /* Neutrals — warm neutral, higher contrast (11 stops, dark) */
-  --color-neutral-50:  #f7f6f2;
-  --color-neutral-100: #e9e7e0;
-  --color-neutral-200: #d2cec4;
-  --color-neutral-300: #b8b4a9;
-  --color-neutral-400: #969187;
-  --color-neutral-500: #827c72;
-  --color-neutral-600: #666159;
-  --color-neutral-700: #2a2823;
-  --color-neutral-800: #1a1916;
-  --color-neutral-900: #10100e;
-  --color-neutral-950: #080807;
+  /* Neutrals — canonical warm ruler (11 stops, dark) */
+  --color-neutral-50:  #f5f4ef;
+  --color-neutral-100: #e6e4dc;
+  --color-neutral-200: #bbb8ac;
+  --color-neutral-300: #8e8b7f;
+  --color-neutral-400: #605e54;
+  --color-neutral-500: #444239;
+  --color-neutral-600: #33312a;
+  --color-neutral-700: #272620;
+  --color-neutral-800: #1d1c17;
+  --color-neutral-900: #161510;
+  --color-neutral-950: #0c0b08;
 
   /* States (dark) */
   --color-success: #82a077;
