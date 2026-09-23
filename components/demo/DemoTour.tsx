@@ -106,18 +106,25 @@ export function DemoTour() {
   }, []);
 
   useEffect(() => {
+    if (!context || !tourState || tourState.status !== "active") return;
+
     const updatePath = () => {
       if (typeof window !== "undefined") {
-        setCurrentPath(window.location.pathname);
+        setCurrentPath((prev) => {
+          const current = window.location.pathname;
+          return prev === current ? prev : current;
+        });
       }
     };
+
+    updatePath();
     window.addEventListener("popstate", updatePath);
     const interval = window.setInterval(updatePath, 500);
     return () => {
       window.removeEventListener("popstate", updatePath);
       window.clearInterval(interval);
     };
-  }, []);
+  }, [context, tourState]);
 
   const persist = (next: TourState) => {
     window.sessionStorage.setItem(DEMO_TOUR_KEY, JSON.stringify(next));

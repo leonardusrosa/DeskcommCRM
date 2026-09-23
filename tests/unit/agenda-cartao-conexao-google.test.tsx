@@ -124,4 +124,17 @@ describe("cartão da conexão do Google", () => {
     expect(screen.getByTestId("o-que-falta").textContent).toContain("GOOGLE_CALENDAR_CLIENT_ID");
     expect(screen.queryByTestId("desconectar-google")).toBeNull();
   });
+
+  it("em demonstração sintética: não exibe o aviso de infraestrutura da instalação", () => {
+    window.sessionStorage.setItem("synthetic_demo_context", JSON.stringify({ country: "CO" }));
+    render(
+      <CartaoDaConexaoGoogle
+        configurado={false}
+        falta={["GOOGLE_CALENDAR_CLIENT_ID"]}
+        contaConectada="ana@clinica.com.br"
+      />,
+    );
+    expect(screen.queryByTestId("google-nao-configurado")).toBeNull();
+    window.sessionStorage.removeItem("synthetic_demo_context");
+  });
 });

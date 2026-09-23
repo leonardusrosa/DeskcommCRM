@@ -25,6 +25,8 @@ import { GoogleLogo } from "@/lib/ui/icons";
  * agir — falta uma chave, e há um lugar onde se põe. Botão desabilitado aqui
  * diria "você não pode", quando o certo é "esta instalação ainda não tem".
  */
+const DEMO_CONTEXT_KEY = "synthetic_demo_context";
+
 export function CartaoDaConexaoGoogle({
   configurado,
   falta,
@@ -48,8 +50,21 @@ export function CartaoDaConexaoGoogle({
   const t = useT();
   const router = useRouter();
   const [desconectando, setDesconectando] = React.useState(false);
+  const [isDemo, setIsDemo] = React.useState(false);
+
+  React.useEffect(() => {
+    try {
+      if (typeof window !== "undefined" && Boolean(window.sessionStorage.getItem(DEMO_CONTEXT_KEY))) {
+        setIsDemo(true);
+      }
+    } catch {
+      setIsDemo(false);
+    }
+  }, []);
 
   if (!configurado) {
+    if (isDemo) return null;
+
     return (
       <div
         data-testid="google-nao-configurado"
