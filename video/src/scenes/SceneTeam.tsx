@@ -11,6 +11,7 @@ import { BrowserFrame } from '../components/BrowserFrame';
 import { Cursor } from '../components/Cursor';
 import { FloatingCard } from '../components/FloatingCard';
 import { OverlayBadge } from '../components/OverlayBadge';
+import { DESKCOMM_SAGE } from '../theme';
 import { VideoContent } from '../types';
 
 interface SceneTeamProps {
@@ -56,7 +57,10 @@ export const SceneTeam: React.FC<SceneTeamProps> = ({ content }) => {
   return (
     <div className="relative flex h-full w-full flex-col items-center justify-between overflow-hidden bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100 px-12 py-8 select-none">
       {/* Ambient background glow */}
-      <div className="pointer-events-none absolute -top-32 right-1/3 h-96 w-96 rounded-full bg-emerald-200/40 blur-[130px]" />
+      <div
+        className="pointer-events-none absolute -top-32 right-1/3 h-96 w-96 rounded-full blur-[130px]"
+        style={{ backgroundColor: `${DESKCOMM_SAGE[200]}40` }}
+      />
 
       {/* Header Info */}
       <OverlayBadge
@@ -90,8 +94,11 @@ export const SceneTeam: React.FC<SceneTeamProps> = ({ content }) => {
 
             {/* Member Table Spotlight (Dra. Laura & Carolina) */}
             <div
-              className="pointer-events-none absolute left-[140px] top-[265px] h-[140px] w-[950px] rounded-xl border-2 border-emerald-500/80 bg-emerald-500/10 shadow-lg ring-4 ring-emerald-500/10"
+              className="pointer-events-none absolute left-[140px] top-[265px] h-[140px] w-[950px] rounded-xl border-2 shadow-lg ring-4"
               style={{
+                borderColor: `${DESKCOMM_SAGE[500]}cc`,
+                backgroundColor: `${DESKCOMM_SAGE[500]}1a`,
+                boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}20`,
                 opacity: interpolate(frame, [40, 70], [0, 1], {
                   extrapolateLeft: 'clamp',
                   extrapolateRight: 'clamp',
@@ -129,9 +136,9 @@ export const SceneTeam: React.FC<SceneTeamProps> = ({ content }) => {
               <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
           }
-          title="Atención Coordinada"
-          subtitle="4 profesionales activos en la clínica"
-          badge="Sin duplicidad"
+          title={content.coordinationTitle}
+          subtitle={content.coordinationSubtitle}
+          badge={content.coordinationBadge}
           className="bottom-12 left-16"
         />
 
@@ -153,9 +160,9 @@ export const SceneTeam: React.FC<SceneTeamProps> = ({ content }) => {
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
           }
-          title="Control de Permisos"
-          subtitle="Roles admin y agentes con interfaz completa"
-          badge="Seguro por diseño"
+          title={content.accessControlTitle}
+          subtitle={content.accessControlSubtitle}
+          badge={content.accessControlBadge}
           className="bottom-12 right-16"
         />
       </div>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { DESKCOMM_SAGE } from '../theme';
 
 interface CursorProps {
   x: number;
@@ -51,8 +52,10 @@ export const Cursor: React.FC<CursorProps> = ({
       {/* Click Ripple */}
       {isClicking && (
         <div
-          className="absolute -left-3 -top-3 h-8 w-8 rounded-full border-2 border-emerald-500 bg-emerald-400/20"
+          className="absolute -left-3 -top-3 h-8 w-8 rounded-full border-2"
           style={{
+            borderColor: DESKCOMM_SAGE[500],
+            backgroundColor: `${DESKCOMM_SAGE[400]}33`,
             transform: `scale(${rippleScale})`,
             opacity: rippleOpacity,
           }}
@@ -83,7 +86,10 @@ export const Cursor: React.FC<CursorProps> = ({
 
       {/* Optional Pill Tag next to cursor */}
       {label && (
-        <div className="ml-5 -mt-3 inline-flex items-center rounded-full bg-slate-900/90 px-2.5 py-0.5 text-[11px] font-medium text-emerald-400 shadow-md backdrop-blur-sm">
+        <div
+          className="ml-5 -mt-3 inline-flex items-center rounded-full bg-slate-900/90 px-2.5 py-0.5 text-[11px] font-medium shadow-md backdrop-blur-sm"
+          style={{ color: DESKCOMM_SAGE[300] }}
+        >
           {label}
         </div>
       )}

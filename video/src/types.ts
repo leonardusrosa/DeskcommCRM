@@ -17,10 +17,11 @@ export interface VideoContent {
   };
   inbox: SceneText & {
     patientName: string;
-    patientMessage: string;
-    agentResponse: string;
-    patientReply: string;
+    treatmentTag: string;
+    specialistLabel: string;
+    handoffBadge: string;
     doctorName: string;
+    channelBadge: string;
   };
   crm: SceneText & {
     pipelineName: string;
@@ -28,16 +29,29 @@ export interface VideoContent {
     stageTo: string;
     dealName: string;
     dealValue: string;
+    dealPhone: string;
+    movingLabel: string;
+    timeLabel: string;
+    nextActionTitle: string;
+    nextActionSubtitle: string;
+    nextActionBadge: string;
   };
   agenda: SceneText & {
     dateText: string;
     appointmentTitle: string;
     specialistText: string;
     statusConfirmed: string;
+    notificationTitle: string;
+    notificationSubtitle: string;
+    notificationBadge: string;
   };
   team: SceneText & {
-    roleAdmin: string;
-    roleAgent: string;
+    coordinationTitle: string;
+    coordinationSubtitle: string;
+    coordinationBadge: string;
+    accessControlTitle: string;
+    accessControlSubtitle: string;
+    accessControlBadge: string;
     accountabilityTag: string;
   };
   outro: {
@@ -47,6 +61,8 @@ export interface VideoContent {
     ctaButton: string;
     features: string[];
     url: string;
+    launchingText: string;
+    oneClickBadge: string;
   };
 }
 

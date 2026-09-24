@@ -11,6 +11,7 @@ import { BrowserFrame } from '../components/BrowserFrame';
 import { Cursor } from '../components/Cursor';
 import { FloatingCard } from '../components/FloatingCard';
 import { OverlayBadge } from '../components/OverlayBadge';
+import { DESKCOMM_SAGE } from '../theme';
 import { VideoContent } from '../types';
 
 interface SceneAgendaProps {
@@ -56,7 +57,10 @@ export const SceneAgenda: React.FC<SceneAgendaProps> = ({ content }) => {
   return (
     <div className="relative flex h-full w-full flex-col items-center justify-between overflow-hidden bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100 px-12 py-8 select-none">
       {/* Ambient background glow */}
-      <div className="pointer-events-none absolute -top-32 left-1/4 h-96 w-96 rounded-full bg-emerald-200/40 blur-[130px]" />
+      <div
+        className="pointer-events-none absolute -top-32 left-1/4 h-96 w-96 rounded-full blur-[130px]"
+        style={{ backgroundColor: `${DESKCOMM_SAGE[200]}40` }}
+      />
 
       {/* Header Info */}
       <OverlayBadge
@@ -90,8 +94,11 @@ export const SceneAgenda: React.FC<SceneAgendaProps> = ({ content }) => {
 
             {/* List Row Spotlight */}
             <div
-              className="pointer-events-none absolute left-[138px] top-[390px] h-[48px] w-[980px] rounded-xl border-2 border-emerald-500/80 bg-emerald-500/10 shadow-lg ring-4 ring-emerald-500/10"
+              className="pointer-events-none absolute left-[138px] top-[390px] h-[48px] w-[980px] rounded-xl border-2 shadow-lg ring-4"
               style={{
+                borderColor: `${DESKCOMM_SAGE[500]}cc`,
+                backgroundColor: `${DESKCOMM_SAGE[500]}1a`,
+                boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}20`,
                 opacity: interpolate(frame, [40, 70], [0, 1], {
                   extrapolateLeft: 'clamp',
                   extrapolateRight: 'clamp',
@@ -101,8 +108,11 @@ export const SceneAgenda: React.FC<SceneAgendaProps> = ({ content }) => {
 
             {/* Calendar Block Spotlight on Thursday 11h */}
             <div
-              className="pointer-events-none absolute left-[900px] top-[515px] h-[42px] w-[185px] rounded-lg border-2 border-emerald-600 bg-emerald-600/20 shadow-md ring-4 ring-emerald-500/20"
+              className="pointer-events-none absolute left-[900px] top-[515px] h-[42px] w-[185px] rounded-lg border-2 shadow-md ring-4"
               style={{
+                borderColor: DESKCOMM_SAGE[600],
+                backgroundColor: `${DESKCOMM_SAGE[600]}33`,
+                boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}33`,
                 opacity: interpolate(frame, [80, 110], [0, 1], {
                   extrapolateLeft: 'clamp',
                   extrapolateRight: 'clamp',
@@ -146,7 +156,7 @@ export const SceneAgenda: React.FC<SceneAgendaProps> = ({ content }) => {
           className="bottom-12 left-16"
         />
 
-        {/* Floating Callout 2: Automatic WhatsApp Reminder */}
+        {/* Floating Callout 2: Notification Follow-up */}
         <FloatingCard
           delay={150}
           icon={
@@ -164,9 +174,9 @@ export const SceneAgenda: React.FC<SceneAgendaProps> = ({ content }) => {
               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
           }
-          title="Recordatorio automático"
-          subtitle="Notificación por WhatsApp 24h antes de la cita"
-          badge="Sin inasistencias"
+          title={content.notificationTitle}
+          subtitle={content.notificationSubtitle}
+          badge={content.notificationBadge}
           className="bottom-12 right-16"
         />
       </div>

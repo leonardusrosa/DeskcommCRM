@@ -11,6 +11,7 @@ import { BrowserFrame } from '../components/BrowserFrame';
 import { Cursor } from '../components/Cursor';
 import { FloatingCard } from '../components/FloatingCard';
 import { OverlayBadge } from '../components/OverlayBadge';
+import { DESKCOMM_SAGE } from '../theme';
 import { VideoContent } from '../types';
 
 interface SceneInboxProps {
@@ -56,7 +57,10 @@ export const SceneInbox: React.FC<SceneInboxProps> = ({ content }) => {
   return (
     <div className="relative flex h-full w-full flex-col items-center justify-between overflow-hidden bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100 px-12 py-8 select-none">
       {/* Ambient background glow */}
-      <div className="pointer-events-none absolute -top-32 left-1/3 h-96 w-96 rounded-full bg-emerald-200/40 blur-[130px]" />
+      <div
+        className="pointer-events-none absolute -top-32 left-1/3 h-96 w-96 rounded-full blur-[130px]"
+        style={{ backgroundColor: `${DESKCOMM_SAGE[200]}40` }}
+      />
 
       {/* Header Info */}
       <OverlayBadge
@@ -90,8 +94,11 @@ export const SceneInbox: React.FC<SceneInboxProps> = ({ content }) => {
 
             {/* Conversation Highlight Box on left list */}
             <div
-              className="pointer-events-none absolute left-[180px] top-[185px] h-[64px] w-[215px] rounded-lg border-2 border-emerald-500 bg-emerald-500/10 shadow-md ring-4 ring-emerald-500/10"
+              className="pointer-events-none absolute left-[180px] top-[185px] h-[64px] w-[215px] rounded-lg border-2 shadow-md ring-4"
               style={{
+                borderColor: DESKCOMM_SAGE[500],
+                backgroundColor: `${DESKCOMM_SAGE[500]}15`,
+                boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}20`,
                 opacity: interpolate(frame, [40, 70], [0, 1], {
                   extrapolateLeft: 'clamp',
                   extrapolateRight: 'clamp',
@@ -101,8 +108,11 @@ export const SceneInbox: React.FC<SceneInboxProps> = ({ content }) => {
 
             {/* Crisp highlight around message thread */}
             <div
-              className="pointer-events-none absolute left-[390px] top-[190px] h-[260px] w-[620px] rounded-2xl border-2 border-emerald-500/80 bg-emerald-500/5 shadow-xl ring-4 ring-emerald-500/10"
+              className="pointer-events-none absolute left-[390px] top-[190px] h-[260px] w-[620px] rounded-2xl border-2 shadow-xl ring-4"
               style={{
+                borderColor: `${DESKCOMM_SAGE[500]}cc`,
+                backgroundColor: `${DESKCOMM_SAGE[500]}0d`,
+                boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}20`,
                 opacity: interpolate(frame, [90, 120], [0, 1], {
                   extrapolateLeft: 'clamp',
                   extrapolateRight: 'clamp',
@@ -139,7 +149,7 @@ export const SceneInbox: React.FC<SceneInboxProps> = ({ content }) => {
           }
           title={content.patientName}
           subtitle={content.callout}
-          badge="WhatsApp"
+          badge={content.channelBadge}
           className="bottom-12 left-16"
         />
 
@@ -162,9 +172,9 @@ export const SceneInbox: React.FC<SceneInboxProps> = ({ content }) => {
               <polyline points="16 11 18 13 22 9" />
             </svg>
           }
-          title="Blanqueamiento dental LED"
-          subtitle={`Especialista: ${content.doctorName}`}
-          badge="Derivación ágil"
+          title={content.treatmentTag}
+          subtitle={content.specialistLabel}
+          badge={content.handoffBadge}
           className="bottom-12 right-16"
         />
       </div>

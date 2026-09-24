@@ -1,5 +1,6 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { DESKCOMM_SAGE } from '../theme';
 
 interface FloatingCardProps {
   delay?: number;
@@ -45,7 +46,14 @@ export const FloatingCard: React.FC<FloatingCardProps> = ({
       }}
     >
       {icon && (
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 shadow-sm border border-emerald-100">
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border shadow-xs"
+          style={{
+            backgroundColor: DESKCOMM_SAGE[50],
+            borderColor: DESKCOMM_SAGE[200],
+            color: DESKCOMM_SAGE[600],
+          }}
+        >
           {icon}
         </div>
       )}
@@ -53,7 +61,13 @@ export const FloatingCard: React.FC<FloatingCardProps> = ({
         <div className="flex items-center gap-2">
           <span className="text-sm font-bold text-slate-900">{title}</span>
           {badge && (
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+            <span
+              className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              style={{
+                backgroundColor: DESKCOMM_SAGE[100],
+                color: DESKCOMM_SAGE[800],
+              }}
+            >
               {badge}
             </span>
           )}

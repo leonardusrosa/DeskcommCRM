@@ -10,6 +10,7 @@ import {
 import { BrowserFrame } from '../components/BrowserFrame';
 import { Cursor } from '../components/Cursor';
 import { OverlayBadge } from '../components/OverlayBadge';
+import { DESKCOMM_SAGE } from '../theme';
 import { VideoContent } from '../types';
 
 interface SceneOutroProps {
@@ -27,7 +28,7 @@ export const SceneOutro: React.FC<SceneOutroProps> = ({ content }) => {
     config: { damping: 14, stiffness: 120 },
   });
 
-  // Outro overlay card entrance at frame 100
+  // Outro overlay card entrance at frame 95
   const overlayProgress = spring({
     frame: Math.max(0, frame - 95),
     fps,
@@ -54,8 +55,14 @@ export const SceneOutro: React.FC<SceneOutroProps> = ({ content }) => {
   return (
     <div className="relative flex h-full w-full flex-col items-center justify-between overflow-hidden bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100 px-12 py-8 select-none">
       {/* Ambient background glow */}
-      <div className="pointer-events-none absolute -top-40 h-[600px] w-[900px] rounded-full bg-emerald-200/50 blur-[150px]" />
-      <div className="pointer-events-none absolute -bottom-40 right-20 h-[500px] w-[700px] rounded-full bg-emerald-100/60 blur-[130px]" />
+      <div
+        className="pointer-events-none absolute -top-40 h-[600px] w-[900px] rounded-full blur-[150px]"
+        style={{ backgroundColor: `${DESKCOMM_SAGE[200]}45` }}
+      />
+      <div
+        className="pointer-events-none absolute -bottom-40 right-20 h-[500px] w-[700px] rounded-full blur-[130px]"
+        style={{ backgroundColor: `${DESKCOMM_SAGE[100]}60` }}
+      />
 
       {/* Header Info */}
       <OverlayBadge
@@ -83,8 +90,11 @@ export const SceneOutro: React.FC<SceneOutroProps> = ({ content }) => {
 
             {/* Colombia Card Focus Glow */}
             <div
-              className="pointer-events-none absolute left-[678px] top-[262px] h-[92px] w-[148px] rounded-xl border-2 border-emerald-500 bg-emerald-500/10 shadow-lg ring-4 ring-emerald-500/10"
+              className="pointer-events-none absolute left-[678px] top-[262px] h-[92px] w-[148px] rounded-xl border-2 shadow-lg ring-4"
               style={{
+                borderColor: DESKCOMM_SAGE[500],
+                backgroundColor: `${DESKCOMM_SAGE[500]}1a`,
+                boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}20`,
                 opacity: interpolate(frame, [25, 55, 95], [0, 1, 0], {
                   extrapolateLeft: 'clamp',
                   extrapolateRight: 'clamp',
@@ -100,10 +110,10 @@ export const SceneOutro: React.FC<SceneOutroProps> = ({ content }) => {
               label={
                 isModalOpen
                   ? frame > 165
-                    ? 'Iniciando…'
+                    ? content.launchingText
                     : undefined
                   : frame > 65
-                    ? '1 clic'
+                    ? content.oneClickBadge
                     : undefined
               }
             />
@@ -123,7 +133,13 @@ export const SceneOutro: React.FC<SceneOutroProps> = ({ content }) => {
                 }}
               >
                 {/* Logo */}
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-800 text-white shadow-xl shadow-emerald-900/20">
+                <div
+                  className="flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-xl"
+                  style={{
+                    backgroundColor: DESKCOMM_SAGE[700],
+                    boxShadow: `0 10px 20px -3px ${DESKCOMM_SAGE[900]}33`,
+                  }}
+                >
                   <svg
                     width="30"
                     height="30"
@@ -155,7 +171,13 @@ export const SceneOutro: React.FC<SceneOutroProps> = ({ content }) => {
                       key={i}
                       className="flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"
                     >
-                      <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-bold text-emerald-800">
+                      <div
+                        className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                        style={{
+                          backgroundColor: DESKCOMM_SAGE[100],
+                          color: DESKCOMM_SAGE[800],
+                        }}
+                      >
                         ✓
                       </div>
                       <span className="truncate text-xs font-semibold text-slate-700">
@@ -167,10 +189,19 @@ export const SceneOutro: React.FC<SceneOutroProps> = ({ content }) => {
 
                 {/* CTA Action Button */}
                 <div className="mt-6 flex w-full flex-col items-center gap-2">
-                  <div className="flex w-full items-center justify-center rounded-2xl bg-emerald-800 px-6 py-3.5 text-base font-bold text-white shadow-xl shadow-emerald-900/25 transition-transform hover:scale-[1.02]">
+                  <div
+                    className="flex w-full items-center justify-center rounded-2xl px-6 py-3.5 text-base font-bold text-white shadow-xl transition-transform hover:scale-[1.02]"
+                    style={{
+                      backgroundColor: DESKCOMM_SAGE[700],
+                      boxShadow: `0 12px 25px -4px ${DESKCOMM_SAGE[900]}40`,
+                    }}
+                  >
                     <span>{content.ctaButton}</span>
                   </div>
-                  <span className="font-mono text-xs font-semibold text-emerald-800">
+                  <span
+                    className="font-mono text-xs font-semibold"
+                    style={{ color: DESKCOMM_SAGE[700] }}
+                  >
                     https://{content.url}
                   </span>
                 </div>

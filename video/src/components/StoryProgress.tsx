@@ -1,5 +1,6 @@
 import React from 'react';
 import { useCurrentFrame } from 'remotion';
+import { DESKCOMM_SAGE } from '../theme';
 
 interface StoryProgressProps {
   currentFrame: number;
@@ -31,12 +32,18 @@ export const StoryProgress: React.FC<StoryProgressProps> = () => {
           <div key={idx} className="flex items-center gap-2">
             <div
               className={`h-2 w-2 rounded-full transition-all ${
-                isActive
-                  ? 'scale-125 bg-emerald-600 ring-4 ring-emerald-500/20'
-                  : isPast
-                    ? 'bg-emerald-700/60'
-                    : 'bg-slate-300'
+                isActive ? 'scale-125' : ''
               }`}
+              style={{
+                backgroundColor: isActive
+                  ? DESKCOMM_SAGE[600]
+                  : isPast
+                    ? DESKCOMM_SAGE[700]
+                    : '#cbd5e1',
+                boxShadow: isActive
+                  ? `0 0 0 4px ${DESKCOMM_SAGE[600]}33`
+                  : undefined,
+              }}
             />
             <span
               className={`text-[11px] font-bold tracking-wider uppercase transition-colors ${

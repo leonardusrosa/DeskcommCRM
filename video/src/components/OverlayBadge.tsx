@@ -1,5 +1,6 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { DESKCOMM_SAGE } from '../theme';
 
 interface OverlayBadgeProps {
   badge: string;
@@ -38,8 +39,18 @@ export const OverlayBadge: React.FC<OverlayBadgeProps> = ({
       }}
     >
       {/* Category Pill Badge */}
-      <div className="inline-flex items-center gap-2 rounded-full border border-emerald-600/20 bg-emerald-50 px-3.5 py-1 text-xs font-semibold tracking-wider text-emerald-800 shadow-sm">
-        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+      <div
+        className="inline-flex items-center gap-2 rounded-full border px-3.5 py-1 text-xs font-semibold tracking-wider shadow-xs"
+        style={{
+          backgroundColor: DESKCOMM_SAGE[50],
+          borderColor: DESKCOMM_SAGE[200],
+          color: DESKCOMM_SAGE[800],
+        }}
+      >
+        <span
+          className="h-2 w-2 rounded-full animate-pulse"
+          style={{ backgroundColor: DESKCOMM_SAGE[600] }}
+        />
         {badge}
       </div>
 

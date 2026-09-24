@@ -1,5 +1,6 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { DESKCOMM_SAGE } from '../theme';
 import { VideoContent } from '../types';
 
 interface SceneIntroProps {
@@ -38,8 +39,14 @@ export const SceneIntro: React.FC<SceneIntroProps> = ({ content }) => {
   return (
     <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-slate-50 via-white to-slate-100 px-16 text-center select-none">
       {/* Background ambient sage glow */}
-      <div className="pointer-events-none absolute -top-40 h-[600px] w-[900px] rounded-full bg-emerald-100/60 blur-[140px]" />
-      <div className="pointer-events-none absolute -bottom-40 right-20 h-[500px] w-[700px] rounded-full bg-emerald-50/80 blur-[120px]" />
+      <div
+        className="pointer-events-none absolute -top-40 h-[600px] w-[900px] rounded-full blur-[140px]"
+        style={{ backgroundColor: `${DESKCOMM_SAGE[200]}55` }}
+      />
+      <div
+        className="pointer-events-none absolute -bottom-40 right-20 h-[500px] w-[700px] rounded-full blur-[120px]"
+        style={{ backgroundColor: `${DESKCOMM_SAGE[100]}77` }}
+      />
 
       {/* Main Container */}
       <div className="relative z-10 flex max-w-5xl flex-col items-center">
@@ -48,7 +55,13 @@ export const SceneIntro: React.FC<SceneIntroProps> = ({ content }) => {
           className="flex items-center gap-3.5"
           style={{ transform: `scale(${logoScale})`, opacity: logoOpacity }}
         >
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-800 text-white shadow-lg shadow-emerald-900/20">
+          <div
+            className="flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-lg"
+            style={{
+              backgroundColor: DESKCOMM_SAGE[700],
+              boxShadow: `0 10px 15px -3px ${DESKCOMM_SAGE[900]}33`,
+            }}
+          >
             <svg
               width="30"
               height="30"
@@ -66,16 +79,24 @@ export const SceneIntro: React.FC<SceneIntroProps> = ({ content }) => {
             </svg>
           </div>
           <span className="text-3xl font-extrabold tracking-tight text-slate-900">
-            Deskcomm<span className="text-emerald-700">CRM</span>
+            Deskcomm<span style={{ color: DESKCOMM_SAGE[600] }}>CRM</span>
           </span>
         </div>
 
         {/* Category Pill */}
         <div
-          className="mt-6 inline-flex items-center gap-2 rounded-full border border-emerald-600/20 bg-emerald-50 px-4 py-1.5 text-xs font-bold tracking-widest text-emerald-800 shadow-sm"
-          style={{ opacity: logoOpacity }}
+          className="mt-6 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-bold tracking-widest shadow-xs"
+          style={{
+            backgroundColor: DESKCOMM_SAGE[50],
+            borderColor: DESKCOMM_SAGE[200],
+            color: DESKCOMM_SAGE[800],
+            opacity: logoOpacity,
+          }}
         >
-          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span
+            className="h-2 w-2 rounded-full animate-pulse"
+            style={{ backgroundColor: DESKCOMM_SAGE[600] }}
+          />
           {content.badge}
         </div>
 
@@ -106,9 +127,12 @@ export const SceneIntro: React.FC<SceneIntroProps> = ({ content }) => {
           {content.features.map((feature, idx) => (
             <div
               key={idx}
-              className="flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white/90 px-4 py-2.5 shadow-sm backdrop-blur-sm"
+              className="flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white/90 px-4 py-2.5 shadow-xs backdrop-blur-sm"
             >
-              <div className="h-2 w-2 rounded-full bg-emerald-600" />
+              <div
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: DESKCOMM_SAGE[600] }}
+              />
               <span className="text-sm font-semibold text-slate-700">{feature}</span>
             </div>
           ))}
