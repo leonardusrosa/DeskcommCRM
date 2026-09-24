@@ -35,18 +35,18 @@ export const SceneOutro: React.FC<SceneOutroProps> = ({ content }) => {
     config: { damping: 14, stiffness: 110 },
   });
 
-  // Cursor Phase 1 (frames 0-90): points to Colombia card on /demo
-  // Cursor Phase 2 (frames 95-200): moves to the CTA button inside the modal and clicks
+  // Cursor Phase 1 (frames 0-90): points directly to Colombia card on /demo (936, 334)
+  // Cursor Phase 2 (frames 95-200): moves directly to the CTA button center (810, 500) and clicks
   const cursorX = interpolate(
     frame,
-    [0, 35, 65, 95, 130, 160],
-    [500, 780, 800, 800, 790, 790],
+    [0, 30, 65, 95, 135, 160],
+    [650, 650, 936, 936, 810, 810],
     { extrapolateRight: 'clamp' }
   );
   const cursorY = interpolate(
     frame,
-    [0, 35, 65, 95, 130, 160],
-    [600, 320, 330, 330, 520, 520],
+    [0, 30, 65, 95, 135, 160],
+    [480, 480, 334, 334, 500, 500],
     { extrapolateRight: 'clamp' }
   );
 
@@ -88,14 +88,14 @@ export const SceneOutro: React.FC<SceneOutroProps> = ({ content }) => {
               className="h-full w-full object-cover object-center"
             />
 
-            {/* Colombia Card Focus Glow */}
+            {/* Colombia Card Focus Spotlight — tightly hugging the Colombia market card */}
             <div
-              className="pointer-events-none absolute left-[678px] top-[262px] h-[92px] w-[148px] rounded-xl border-2 shadow-lg ring-4"
+              className="pointer-events-none absolute left-[832px] top-[281px] h-[107px] w-[208px] rounded-xl border-2 shadow-lg ring-4"
               style={{
                 borderColor: DESKCOMM_SAGE[500],
                 backgroundColor: `${DESKCOMM_SAGE[500]}1a`,
-                boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}20`,
-                opacity: interpolate(frame, [25, 55, 95], [0, 1, 0], {
+                boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}25`,
+                opacity: interpolate(frame, [25, 50, 90, 95], [0, 1, 1, 0], {
                   extrapolateLeft: 'clamp',
                   extrapolateRight: 'clamp',
                 }),
@@ -107,15 +107,8 @@ export const SceneOutro: React.FC<SceneOutroProps> = ({ content }) => {
               x={cursorX}
               y={cursorY}
               clickFrame={isModalOpen ? 160 : 65}
-              label={
-                isModalOpen
-                  ? frame > 165
-                    ? content.launchingText
-                    : undefined
-                  : frame > 65
-                    ? content.oneClickBadge
-                    : undefined
-              }
+              label={!isModalOpen && frame > 65 ? content.oneClickBadge : undefined}
+              labelPosition="top"
             />
 
             {/* Final Conversion Modal Card (Slides up at frame 95) */}
@@ -188,7 +181,7 @@ export const SceneOutro: React.FC<SceneOutroProps> = ({ content }) => {
                 </div>
 
                 {/* CTA Action Button */}
-                <div className="mt-6 flex w-full flex-col items-center gap-2">
+                <div className="mt-6 flex w-full flex-col items-center gap-4">
                   <div
                     className="flex w-full items-center justify-center rounded-2xl px-6 py-3.5 text-base font-bold text-white shadow-xl transition-transform hover:scale-[1.02]"
                     style={{

@@ -7,6 +7,7 @@ interface CursorProps {
   y: number;
   clickFrame?: number;
   label?: string;
+  labelPosition?: 'right' | 'top' | 'bottom' | 'left';
   style?: React.CSSProperties;
 }
 
@@ -15,6 +16,7 @@ export const Cursor: React.FC<CursorProps> = ({
   y,
   clickFrame,
   label,
+  labelPosition = 'right',
   style = {},
 }) => {
   const frame = useCurrentFrame();
@@ -87,7 +89,15 @@ export const Cursor: React.FC<CursorProps> = ({
       {/* Optional Pill Tag next to cursor */}
       {label && (
         <div
-          className="ml-5 -mt-3 inline-flex items-center rounded-full bg-slate-900/90 px-2.5 py-0.5 text-[11px] font-medium shadow-md backdrop-blur-sm"
+          className={`absolute whitespace-nowrap inline-flex items-center rounded-full bg-slate-900/90 px-2.5 py-0.5 text-[11px] font-medium shadow-md backdrop-blur-sm pointer-events-none select-none ${
+            labelPosition === 'top'
+              ? 'bottom-full mb-1.5 left-1'
+              : labelPosition === 'bottom'
+                ? 'top-full mt-1.5 left-1'
+                : labelPosition === 'left'
+                  ? 'right-full mr-2.5 top-0'
+                  : 'left-full ml-2.5 top-0'
+          }`}
           style={{ color: DESKCOMM_SAGE[300] }}
         >
           {label}

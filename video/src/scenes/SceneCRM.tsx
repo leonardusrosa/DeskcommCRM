@@ -36,36 +36,40 @@ export const SceneCRM: React.FC<SceneCRMProps> = ({ content }) => {
     config: { damping: 18, stiffness: 80 },
   });
 
-  const cameraScale = interpolate(zoomProgress, [0, 1], [1, 1.24]);
+  const cameraScale = interpolate(zoomProgress, [0, 1], [1, 1.22]);
   const cameraX = interpolate(zoomProgress, [0, 1], [0, -80]);
-  const cameraY = interpolate(zoomProgress, [0, 1], [0, -30]);
+  const cameraY = interpolate(zoomProgress, [0, 1], [0, -28]);
 
-  // Card Drag Animation: from "Nuevo contacto" (left ~175px) to "Consulta agendada" (left ~1025px)
+  // Card Drag Animation: from "Nuevo contacto" (left ~200px) to "Consulta agendada" (left ~1022px)
   const dragProgress = spring({
-    frame: Math.max(0, frame - 85),
+    frame: Math.max(0, frame - 80),
     fps,
     config: { damping: 16, stiffness: 85 },
   });
 
-  const isDragging = frame >= 80 && frame < 170;
-  const isDropped = frame >= 170;
+  const isDragging = frame >= 80 && frame < 160;
+  const isDropped = frame >= 160;
 
-  // Animated card coordinates
-  const cardX = interpolate(dragProgress, [0, 1], [175, 1025]);
-  const cardY = interpolate(dragProgress, [0, 0.5, 1], [215, 195, 215]);
-  const cardScale = isDragging ? 1.05 : 1;
+  // Animated card coordinates: starts exactly over Column 1 card and lands in Column 4 slot
+  const cardX = interpolate(dragProgress, [0, 1], [249, 1022]);
+  const cardY = interpolate(dragProgress, [0, 0.4, 1], [253, 230, 215]);
+  const cardScale = isDragging ? 1.04 : 1;
 
-  // Cursor coordinates tracking the drag
+  // Cursor coordinates tracking the drag:
+  // 0-45: rest
+  // 50-80: moves to card in Column 1 (310, 290)
+  // 80-160: carries card to Column 4 (1070, 260)
+  // 160+: settles at destination
   const cursorX = interpolate(
     frame,
-    [0, 50, 80, 155, 190, 250],
-    [450, 230, 230, 1080, 1080, 1160],
+    [0, 45, 75, 160, 220],
+    [450, 450, 310, 1070, 1070],
     { extrapolateRight: 'clamp' }
   );
   const cursorY = interpolate(
     frame,
-    [0, 50, 80, 155, 190, 250],
-    [600, 245, 245, 245, 245, 320],
+    [0, 45, 75, 160, 220],
+    [550, 550, 290, 260, 260],
     { extrapolateRight: 'clamp' }
   );
 
@@ -107,13 +111,30 @@ export const SceneCRM: React.FC<SceneCRMProps> = ({ content }) => {
               className="h-full w-full object-cover object-left-top"
             />
 
-            {/* Target Column Highlight ("Consulta agendada" column) */}
+            {/* Source card mask in "Nuevo contacto" — covers duplicate card during & after drag */}
+            {frame >= 80 && (
+              <div
+                className="pointer-events-none absolute z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-[#f8fafc]"
+                style={{
+                  left: 247,
+                  top: 251,
+                  width: 236,
+                  height: 168,
+                }}
+              >
+                <span className="text-[10px] font-medium text-slate-400">
+                  {content.stageFrom}
+                </span>
+              </div>
+            )}
+
+            {/* Tight drop slot highlight in "Consulta agendada" */}
             <div
-              className="pointer-events-none absolute left-[1015px] top-[152px] h-[480px] w-[205px] rounded-xl border-2 border-dashed"
+              className="pointer-events-none absolute left-[1018px] top-[212px] h-[168px] w-[236px] rounded-xl border-2 border-dashed transition-all"
               style={{
-                borderColor: `${DESKCOMM_SAGE[500]}cc`,
-                backgroundColor: `${DESKCOMM_SAGE[500]}0d`,
-                opacity: interpolate(frame, [65, 90, 180, 210], [0, 1, 1, 0.35], {
+                borderColor: isDropped ? `${DESKCOMM_SAGE[600]}88` : `${DESKCOMM_SAGE[500]}cc`,
+                backgroundColor: isDropped ? `${DESKCOMM_SAGE[500]}08` : `${DESKCOMM_SAGE[500]}12`,
+                opacity: interpolate(frame, [60, 80, 180, 220], [0, 1, 1, 0.4], {
                   extrapolateLeft: 'clamp',
                   extrapolateRight: 'clamp',
                 }),
@@ -122,11 +143,11 @@ export const SceneCRM: React.FC<SceneCRMProps> = ({ content }) => {
 
             {/* Dragged Lead Card Simulation */}
             <div
-              className="pointer-events-none absolute z-40 w-[200px] rounded-xl border bg-white p-3 shadow-xl transition-all"
+              className="pointer-events-none absolute z-40 w-[236px] rounded-xl border bg-white p-3 shadow-xl transition-all"
               style={{
                 left: cardX,
                 top: cardY,
-                transform: `scale(${cardScale}) rotate(${isDragging ? 2.5 : 0}deg)`,
+                transform: `scale(${cardScale}) rotate(${isDragging ? 2 : 0}deg)`,
                 boxShadow: isDragging
                   ? `0 25px 30px -5px ${DESKCOMM_SAGE[600]}44, 0 10px 10px -5px rgba(0, 0, 0, 0.1)`
                   : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
@@ -167,11 +188,12 @@ export const SceneCRM: React.FC<SceneCRMProps> = ({ content }) => {
               y={cursorY}
               clickFrame={80}
               label={isDragging ? content.movingLabel : undefined}
+              labelPosition="top"
             />
           </div>
         </BrowserFrame>
 
-        {/* Floating Callout 1: Funnel Progression */}
+        {/* Single dominant floating callout: Funnel Progression */}
         <FloatingCard
           delay={90}
           icon={
@@ -192,30 +214,6 @@ export const SceneCRM: React.FC<SceneCRMProps> = ({ content }) => {
           subtitle={`Etapa: ${isDropped ? content.stageTo : content.stageFrom}`}
           badge={content.dealValue}
           className="bottom-12 left-16"
-        />
-
-        {/* Floating Callout 2: High Conversion Rate */}
-        <FloatingCard
-          delay={170}
-          icon={
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 14 14" />
-            </svg>
-          }
-          title={content.nextActionTitle}
-          subtitle={content.nextActionSubtitle}
-          badge={content.nextActionBadge}
-          className="bottom-12 right-16"
         />
       </div>
     </div>
