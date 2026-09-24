@@ -11,6 +11,7 @@ import { BrowserFrame } from '../components/BrowserFrame';
 import { Cursor } from '../components/Cursor';
 import { FloatingCard } from '../components/FloatingCard';
 import { OverlayBadge } from '../components/OverlayBadge';
+import { CRM_VIEWPORT_GEOMETRY } from '../geometry';
 import { DESKCOMM_SAGE } from '../theme';
 import { VideoContent } from '../types';
 
@@ -21,6 +22,9 @@ interface SceneCRMProps {
 export const SceneCRM: React.FC<SceneCRMProps> = ({ content }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+
+  const sourceCard = CRM_VIEWPORT_GEOMETRY.sourceCardMask;
+  const dropSlot = CRM_VIEWPORT_GEOMETRY.dropSlot;
 
   // Entrance spring
   const entrance = spring({
@@ -40,7 +44,7 @@ export const SceneCRM: React.FC<SceneCRMProps> = ({ content }) => {
   const cameraX = interpolate(zoomProgress, [0, 1], [0, -80]);
   const cameraY = interpolate(zoomProgress, [0, 1], [0, -28]);
 
-  // Card Drag Animation: from "Nuevo contacto" (left ~200px) to "Consulta agendada" (left ~1022px)
+  // Card Drag Animation: from Column 1 to Column 4
   const dragProgress = spring({
     frame: Math.max(0, frame - 80),
     fps,
@@ -50,26 +54,26 @@ export const SceneCRM: React.FC<SceneCRMProps> = ({ content }) => {
   const isDragging = frame >= 80 && frame < 160;
   const isDropped = frame >= 160;
 
-  // Animated card coordinates: starts exactly over Column 1 card and lands in Column 4 slot
-  const cardX = interpolate(dragProgress, [0, 1], [249, 1022]);
-  const cardY = interpolate(dragProgress, [0, 0.4, 1], [253, 230, 215]);
+  // Animated card coordinates: starts exactly over source card and lands in drop slot
+  const cardX = interpolate(dragProgress, [0, 1], [sourceCard.left, dropSlot.left]);
+  const cardY = interpolate(dragProgress, [0, 0.4, 1], [
+    sourceCard.top,
+    sourceCard.top - 20,
+    dropSlot.top,
+  ]);
   const cardScale = isDragging ? 1.04 : 1;
 
   // Cursor coordinates tracking the drag:
-  // 0-45: rest
-  // 50-80: moves to card in Column 1 (310, 290)
-  // 80-160: carries card to Column 4 (1070, 260)
-  // 160+: settles at destination
   const cursorX = interpolate(
     frame,
     [0, 45, 75, 160, 220],
-    [450, 450, 310, 1070, 1070],
+    [450, 450, sourceCard.left + 80, dropSlot.left + 80, dropSlot.left + 80],
     { extrapolateRight: 'clamp' }
   );
   const cursorY = interpolate(
     frame,
     [0, 45, 75, 160, 220],
-    [550, 550, 290, 260, 260],
+    [550, 550, sourceCard.top + 40, dropSlot.top + 40, dropSlot.top + 40],
     { extrapolateRight: 'clamp' }
   );
 
@@ -116,10 +120,10 @@ export const SceneCRM: React.FC<SceneCRMProps> = ({ content }) => {
               <div
                 className="pointer-events-none absolute z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-[#f8fafc]"
                 style={{
-                  left: 247,
-                  top: 251,
-                  width: 236,
-                  height: 168,
+                  left: sourceCard.left,
+                  top: sourceCard.top,
+                  width: sourceCard.width,
+                  height: sourceCard.height,
                 }}
               >
                 <span className="text-[10px] font-medium text-slate-400">
@@ -128,13 +132,17 @@ export const SceneCRM: React.FC<SceneCRMProps> = ({ content }) => {
               </div>
             )}
 
-            {/* Tight drop slot highlight in "Consulta agendada" */}
+            {/* Destination slot highlight in "Consulta agendada" */}
             <div
-              className="pointer-events-none absolute left-[1018px] top-[212px] h-[168px] w-[236px] rounded-xl border-2 border-dashed transition-all"
+              className="pointer-events-none absolute rounded-xl border-2 border-dashed transition-all"
               style={{
+                left: dropSlot.left,
+                top: dropSlot.top,
+                width: dropSlot.width,
+                height: dropSlot.height,
                 borderColor: isDropped ? `${DESKCOMM_SAGE[600]}88` : `${DESKCOMM_SAGE[500]}cc`,
-                backgroundColor: isDropped ? `${DESKCOMM_SAGE[500]}08` : `${DESKCOMM_SAGE[500]}12`,
-                opacity: interpolate(frame, [60, 80, 180, 220], [0, 1, 1, 0.4], {
+                backgroundColor: isDropped ? `${DESKCOMM_SAGE[500]}08` : `${DESKCOMM_SAGE[500]}14`,
+                opacity: interpolate(frame, [60, 80, 180, 220], [0.85, 1, 1, 0.4], {
                   extrapolateLeft: 'clamp',
                   extrapolateRight: 'clamp',
                 }),
@@ -143,10 +151,12 @@ export const SceneCRM: React.FC<SceneCRMProps> = ({ content }) => {
 
             {/* Dragged Lead Card Simulation */}
             <div
-              className="pointer-events-none absolute z-40 w-[236px] rounded-xl border bg-white p-3 shadow-xl transition-all"
+              className="pointer-events-none absolute z-40 rounded-xl border bg-white p-3 shadow-xl transition-all"
               style={{
                 left: cardX,
                 top: cardY,
+                width: dropSlot.width,
+                minHeight: dropSlot.height,
                 transform: `scale(${cardScale}) rotate(${isDragging ? 2 : 0}deg)`,
                 boxShadow: isDragging
                   ? `0 25px 30px -5px ${DESKCOMM_SAGE[600]}44, 0 10px 10px -5px rgba(0, 0, 0, 0.1)`

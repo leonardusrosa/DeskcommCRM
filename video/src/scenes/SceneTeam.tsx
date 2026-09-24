@@ -11,6 +11,7 @@ import { BrowserFrame } from '../components/BrowserFrame';
 import { Cursor } from '../components/Cursor';
 import { FloatingCard } from '../components/FloatingCard';
 import { OverlayBadge } from '../components/OverlayBadge';
+import { TEAM_VIEWPORT_GEOMETRY } from '../geometry';
 import { DESKCOMM_SAGE } from '../theme';
 import { VideoContent } from '../types';
 
@@ -21,6 +22,8 @@ interface SceneTeamProps {
 export const SceneTeam: React.FC<SceneTeamProps> = ({ content }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+
+  const roleRow = TEAM_VIEWPORT_GEOMETRY.lauraRoleRow;
 
   // Entrance spring
   const entrance = spring({
@@ -46,13 +49,13 @@ export const SceneTeam: React.FC<SceneTeamProps> = ({ content }) => {
   const cursorX = interpolate(
     frame,
     [0, 40, 90, 150],
-    [550, 550, 665, 665],
+    [550, 550, roleRow.left + roleRow.width - 55, roleRow.left + roleRow.width - 55],
     { extrapolateRight: 'clamp' }
   );
   const cursorY = interpolate(
     frame,
     [0, 40, 90, 150],
-    [480, 480, 280, 280],
+    [480, 480, roleRow.top + 22, roleRow.top + 22],
     { extrapolateRight: 'clamp' }
   );
 
@@ -96,8 +99,12 @@ export const SceneTeam: React.FC<SceneTeamProps> = ({ content }) => {
 
             {/* Member Table Spotlight (Tight single row on Dra. Laura Martínez & Admin role) */}
             <div
-              className="pointer-events-none absolute left-[201px] top-[257px] h-[47px] w-[542px] rounded-xl border-2 shadow-lg ring-4"
+              className="pointer-events-none absolute rounded-xl border-2 shadow-lg ring-4"
               style={{
+                left: roleRow.left,
+                top: roleRow.top,
+                width: roleRow.width,
+                height: roleRow.height,
                 borderColor: `${DESKCOMM_SAGE[500]}cc`,
                 backgroundColor: `${DESKCOMM_SAGE[500]}15`,
                 boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}20`,

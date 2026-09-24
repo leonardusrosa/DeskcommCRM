@@ -11,6 +11,7 @@ import { BrowserFrame } from '../components/BrowserFrame';
 import { Cursor } from '../components/Cursor';
 import { FloatingCard } from '../components/FloatingCard';
 import { OverlayBadge } from '../components/OverlayBadge';
+import { AGENDA_VIEWPORT_GEOMETRY } from '../geometry';
 import { DESKCOMM_SAGE } from '../theme';
 import { VideoContent } from '../types';
 
@@ -21,6 +22,8 @@ interface SceneAgendaProps {
 export const SceneAgenda: React.FC<SceneAgendaProps> = ({ content }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+
+  const appointment = AGENDA_VIEWPORT_GEOMETRY.thursdayAppointment;
 
   // Entrance spring
   const entrance = spring({
@@ -46,13 +49,13 @@ export const SceneAgenda: React.FC<SceneAgendaProps> = ({ content }) => {
   const cursorX = interpolate(
     frame,
     [0, 40, 90, 150],
-    [650, 650, 1045, 1045],
+    [650, 650, appointment.left + 25, appointment.left + 25],
     { extrapolateRight: 'clamp' }
   );
   const cursorY = interpolate(
     frame,
     [0, 40, 90, 150],
-    [550, 550, 575, 575],
+    [550, 550, appointment.top + 10, appointment.top + 10],
     { extrapolateRight: 'clamp' }
   );
 
@@ -96,8 +99,12 @@ export const SceneAgenda: React.FC<SceneAgendaProps> = ({ content }) => {
 
             {/* Precise appointment card spotlight on Thursday 11:00 AM */}
             <div
-              className="pointer-events-none absolute left-[1035px] top-[566px] h-[40px] w-[200px] rounded-lg border-2 shadow-md ring-4"
+              className="pointer-events-none absolute rounded-lg border-2 shadow-md ring-4"
               style={{
+                left: appointment.left,
+                top: appointment.top,
+                width: appointment.width,
+                height: appointment.height,
                 borderColor: DESKCOMM_SAGE[600],
                 backgroundColor: `${DESKCOMM_SAGE[600]}25`,
                 boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}30`,
