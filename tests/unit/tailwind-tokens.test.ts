@@ -168,7 +168,7 @@ describe("Tailwind 4 — a ponte token → utilitário", () => {
         // Só interessa pasta que entrega UI ao browser. `tests/` e `docs/`
         // escrevem className em fixture e em exemplo, e ficam de fora de
         // propósito — varrê-las publicaria CSS que nenhuma tela usa.
-        if (["tests", "docs", "scripts", "supabase", "public", "tasks", "loop"].includes(nome)) {
+        if (["tests", "docs", "scripts", "supabase", "public", "tasks", "loop", "video"].includes(nome)) {
           return false;
         }
         return temClassName(path.join(RAIZ, nome));
