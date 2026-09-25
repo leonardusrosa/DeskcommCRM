@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Easing,
   Img,
   interpolate,
   spring,
@@ -44,38 +45,79 @@ export const SceneCRM: React.FC<SceneCRMProps> = ({ content }) => {
   const cameraX = interpolate(zoomProgress, [0, 1], [0, -80]);
   const cameraY = interpolate(zoomProgress, [0, 1], [0, -28]);
 
-  // Card Drag Animation: from Column 1 to Column 4
-  const dragProgress = spring({
-    frame: Math.max(0, frame - 80),
-    fps,
-    config: { damping: 16, stiffness: 85 },
-  });
+  // Choreography keyframes
+  const DRAG_START = 95;
+  const DRAG_END = 170;
+  const GRAB_FRAME = 90;
+  const RELEASE_HOLD = 190;
 
-  const isDragging = frame >= 80 && frame < 160;
-  const isDropped = frame >= 160;
+  // Semantic interaction states
+  const hasGrabbed = frame >= DRAG_START;
+  const isDragging = frame >= DRAG_START && frame < DRAG_END;
+  const hasDropped = frame >= DRAG_END;
 
-  // Animated card coordinates: starts exactly over source card and lands in drop slot
-  const cardX = interpolate(dragProgress, [0, 1], [sourceCard.left, dropSlot.left]);
-  const cardY = interpolate(dragProgress, [0, 0.4, 1], [
-    sourceCard.top,
-    sourceCard.top - 20,
-    dropSlot.top,
-  ]);
+  // Single shared deterministic drag progress (cubic in-out)
+  const dragProgress = interpolate(
+    frame,
+    [DRAG_START, DRAG_END],
+    [0, 1],
+    {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+      easing: Easing.inOut(Easing.cubic),
+    }
+  );
+
+  // Card coordinates strictly driven by shared dragProgress
+  const cardX = interpolate(
+    dragProgress,
+    [0, 1],
+    [sourceCard.left, dropSlot.left]
+  );
+  const cardY = interpolate(
+    dragProgress,
+    [0, 0.5, 1],
+    [sourceCard.top, sourceCard.top - 20, dropSlot.top]
+  );
   const cardScale = isDragging ? 1.04 : 1;
 
-  // Cursor coordinates tracking the drag:
-  const cursorX = interpolate(
-    frame,
-    [0, 45, 75, 160, 220],
-    [450, 450, sourceCard.left + 80, dropSlot.left + 80, dropSlot.left + 80],
-    { extrapolateRight: 'clamp' }
-  );
-  const cursorY = interpolate(
-    frame,
-    [0, 45, 75, 160, 220],
-    [550, 550, sourceCard.top + 40, dropSlot.top + 40, dropSlot.top + 40],
-    { extrapolateRight: 'clamp' }
-  );
+  // Invariant grip offset: fixed relative to card top-left
+  const GRIP_X = 85;
+  const GRIP_Y = 40;
+  const sourceGripX = sourceCard.left + GRIP_X;
+  const sourceGripY = sourceCard.top + GRIP_Y;
+  const dropGripX = dropSlot.left + GRIP_X;
+  const dropGripY = dropSlot.top + GRIP_Y;
+
+  // Cursor trajectory: approaches card, grabs, locked to card during drag, releases
+  let cursorX: number;
+  let cursorY: number;
+
+  if (frame < DRAG_START) {
+    // 0-45: rest at overview, 45-75: approach source card, 75-95: rest on card & grab
+    cursorX = interpolate(frame, [0, 45, 75], [450, 450, sourceGripX], {
+      extrapolateRight: 'clamp',
+    });
+    cursorY = interpolate(frame, [0, 45, 75], [550, 550, sourceGripY], {
+      extrapolateRight: 'clamp',
+    });
+  } else if (frame < DRAG_END) {
+    // 95-170: locked 1:1 to card trajectory with invariant grip offset
+    cursorX = cardX + GRIP_X;
+    cursorY = cardY + GRIP_Y;
+  } else if (frame < RELEASE_HOLD) {
+    // 170-190: brief settled state / release at destination
+    cursorX = dropGripX;
+    cursorY = dropGripY;
+  } else {
+    // 190+: gently moves away from dropped card
+    cursorX = interpolate(frame, [190, 230], [dropGripX, dropGripX + 30], {
+      extrapolateRight: 'clamp',
+    });
+    cursorY = interpolate(frame, [190, 230], [dropGripY, dropGripY + 95], {
+      extrapolateRight: 'clamp',
+    });
+  }
 
   return (
     <div className="relative flex h-full w-full flex-col items-center justify-between overflow-hidden bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100 px-12 py-8 select-none">
@@ -116,7 +158,7 @@ export const SceneCRM: React.FC<SceneCRMProps> = ({ content }) => {
             />
 
             {/* Source card mask in "Nuevo contacto" — covers duplicate card during & after drag */}
-            {frame >= 80 && (
+            {hasGrabbed && (
               <div
                 className="pointer-events-none absolute z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-[#f8fafc]"
                 style={{
@@ -140,8 +182,8 @@ export const SceneCRM: React.FC<SceneCRMProps> = ({ content }) => {
                 top: dropSlot.top,
                 width: dropSlot.width,
                 height: dropSlot.height,
-                borderColor: isDropped ? `${DESKCOMM_SAGE[600]}88` : `${DESKCOMM_SAGE[500]}cc`,
-                backgroundColor: isDropped ? `${DESKCOMM_SAGE[500]}08` : `${DESKCOMM_SAGE[500]}14`,
+                borderColor: hasDropped ? `${DESKCOMM_SAGE[600]}88` : `${DESKCOMM_SAGE[500]}cc`,
+                backgroundColor: hasDropped ? `${DESKCOMM_SAGE[500]}08` : `${DESKCOMM_SAGE[500]}14`,
                 opacity: interpolate(frame, [60, 80, 180, 220], [0.85, 1, 1, 0.4], {
                   extrapolateLeft: 'clamp',
                   extrapolateRight: 'clamp',
@@ -149,54 +191,57 @@ export const SceneCRM: React.FC<SceneCRMProps> = ({ content }) => {
               }}
             />
 
-            {/* Dragged Lead Card Simulation */}
-            <div
-              className="pointer-events-none absolute z-40 rounded-xl border bg-white p-3 shadow-xl transition-all"
-              style={{
-                left: cardX,
-                top: cardY,
-                width: dropSlot.width,
-                minHeight: dropSlot.height,
-                transform: `scale(${cardScale}) rotate(${isDragging ? 2 : 0}deg)`,
-                boxShadow: isDragging
-                  ? `0 25px 30px -5px ${DESKCOMM_SAGE[600]}44, 0 10px 10px -5px rgba(0, 0, 0, 0.1)`
-                  : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                borderColor: isDragging || isDropped ? DESKCOMM_SAGE[600] : '#e2e8f0',
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-900 leading-snug">
-                  {content.dealName}
-                </span>
-                <span
-                  className="rounded px-1.5 py-0.5 text-[9px] font-bold"
-                  style={{
-                    backgroundColor: DESKCOMM_SAGE[100],
-                    color: DESKCOMM_SAGE[800],
-                  }}
-                >
-                  {content.dealValue}
-                </span>
+            {/* Movable Lead Card Simulation — appears only once grabbed */}
+            {hasGrabbed && (
+              <div
+                className="pointer-events-none absolute z-40 rounded-xl border bg-white p-3 shadow-xl transition-all"
+                style={{
+                  left: cardX,
+                  top: cardY,
+                  width: dropSlot.width,
+                  minHeight: dropSlot.height,
+                  transform: `scale(${cardScale}) rotate(${isDragging ? 2 : 0}deg)`,
+                  boxShadow: isDragging
+                    ? `0 25px 30px -5px ${DESKCOMM_SAGE[600]}44, 0 10px 10px -5px rgba(0, 0, 0, 0.1)`
+                    : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                  borderColor: isDragging || hasDropped ? DESKCOMM_SAGE[600] : '#e2e8f0',
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900 leading-snug">
+                    {content.dealName}
+                  </span>
+                  <span
+                    className="rounded px-1.5 py-0.5 text-[9px] font-bold"
+                    style={{
+                      backgroundColor: DESKCOMM_SAGE[100],
+                      color: DESKCOMM_SAGE[800],
+                    }}
+                  >
+                    {content.dealValue}
+                  </span>
+                </div>
+                <p className="mt-1 text-[10px] text-slate-500">
+                  {content.dealPhone}
+                </p>
+                <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-1.5 text-[10px]">
+                  <span
+                    className="font-semibold"
+                    style={{ color: DESKCOMM_SAGE[700] }}
+                  >
+                    {hasDropped ? content.stageTo : content.stageFrom}
+                  </span>
+                  <span className="text-slate-400">{content.timeLabel}</span>
+                </div>
               </div>
-              <p className="mt-1 text-[10px] text-slate-500">
-                {content.dealPhone}
-              </p>
-              <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-1.5 text-[10px]">
-                <span
-                  className="font-semibold"
-                  style={{ color: DESKCOMM_SAGE[700] }}
-                >
-                  {isDropped ? content.stageTo : content.stageFrom}
-                </span>
-                <span className="text-slate-400">{content.timeLabel}</span>
-              </div>
-            </div>
+            )}
 
             {/* Simulated Cursor */}
             <Cursor
               x={cursorX}
               y={cursorY}
-              clickFrame={80}
+              clickFrame={GRAB_FRAME}
+              isPressed={isDragging}
               label={isDragging ? content.movingLabel : undefined}
               labelPosition="top"
             />
@@ -221,7 +266,7 @@ export const SceneCRM: React.FC<SceneCRMProps> = ({ content }) => {
             </svg>
           }
           title={content.pipelineName}
-          subtitle={`Etapa: ${isDropped ? content.stageTo : content.stageFrom}`}
+          subtitle={`Etapa: ${hasDropped ? content.stageTo : content.stageFrom}`}
           badge={content.dealValue}
           className="bottom-12 left-16"
         />

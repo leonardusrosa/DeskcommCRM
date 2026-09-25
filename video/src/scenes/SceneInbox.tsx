@@ -41,33 +41,33 @@ export const SceneInbox: React.FC<SceneInboxProps> = ({ content }) => {
   const cameraX = interpolate(zoomProgress, [0, 1], [0, -70]);
   const cameraY = interpolate(zoomProgress, [0, 1], [0, -25]);
 
-  // Cursor movement:
-  // 0-45: rest
-  // 45-80: moves to incoming message
-  // 85-125: shifts to agent reply bubble
-  const cursorX = interpolate(
+  const target1X = INBOX_VIEWPORT_GEOMETRY.incomingMessage.left + 50;
+  const target1Y = INBOX_VIEWPORT_GEOMETRY.incomingMessage.top + 28;
+  const target2X = INBOX_VIEWPORT_GEOMETRY.agentReply.left + 50;
+  const target2Y = INBOX_VIEWPORT_GEOMETRY.agentReply.top + 35;
+
+  // Phase 1 (frames 0-100): approaches and rests on incoming customer message
+  // Phase 2 (frames 112+): positioned at agent reply bubble (no cross-drag)
+  const cursorX =
+    frame < 112
+      ? interpolate(frame, [0, 45, 75], [580, 580, target1X], {
+          extrapolateRight: 'clamp',
+        })
+      : target2X;
+
+  const cursorY =
+    frame < 112
+      ? interpolate(frame, [0, 45, 75], [480, 480, target1Y], {
+          extrapolateRight: 'clamp',
+        })
+      : target2Y;
+
+  // Cursor opacity: fades out at incoming message (100-112), reappears at reply (120-132)
+  const cursorOpacity = interpolate(
     frame,
-    [0, 45, 80, 125, 200],
-    [
-      580,
-      580,
-      INBOX_VIEWPORT_GEOMETRY.incomingMessage.left + 50,
-      INBOX_VIEWPORT_GEOMETRY.agentReply.left + 50,
-      INBOX_VIEWPORT_GEOMETRY.agentReply.left + 50,
-    ],
-    { extrapolateRight: 'clamp' }
-  );
-  const cursorY = interpolate(
-    frame,
-    [0, 45, 80, 125, 200],
-    [
-      480,
-      480,
-      INBOX_VIEWPORT_GEOMETRY.incomingMessage.top + 28,
-      INBOX_VIEWPORT_GEOMETRY.agentReply.top + 35,
-      INBOX_VIEWPORT_GEOMETRY.agentReply.top + 35,
-    ],
-    { extrapolateRight: 'clamp' }
+    [0, 40, 45, 100, 112, 120, 132],
+    [0, 0, 1, 1, 0, 0, 1],
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
   );
 
   return (
@@ -119,7 +119,7 @@ export const SceneInbox: React.FC<SceneInboxProps> = ({ content }) => {
               }}
             />
 
-            {/* Stage 1: Tight highlight around incoming customer message (frames 45-105) */}
+            {/* Stage 1: Tight highlight around incoming customer message (frames 45-112) */}
             <div
               className="pointer-events-none absolute rounded-2xl border-2 shadow-md ring-4"
               style={{
@@ -130,14 +130,14 @@ export const SceneInbox: React.FC<SceneInboxProps> = ({ content }) => {
                 borderColor: `${DESKCOMM_SAGE[400]}cc`,
                 backgroundColor: `${DESKCOMM_SAGE[200]}18`,
                 boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[400]}20`,
-                opacity: interpolate(frame, [45, 60, 95, 105], [0, 1, 1, 0], {
+                opacity: interpolate(frame, [45, 60, 100, 112], [0, 1, 1, 0], {
                   extrapolateLeft: 'clamp',
                   extrapolateRight: 'clamp',
                 }),
               }}
             />
 
-            {/* Stage 2: Tight highlight hugging green agent reply bubble (frames 105-390) */}
+            {/* Stage 2: Tight highlight hugging green agent reply bubble (frames 112-390) */}
             <div
               className="pointer-events-none absolute rounded-2xl border-2 shadow-xl ring-4"
               style={{
@@ -148,19 +148,19 @@ export const SceneInbox: React.FC<SceneInboxProps> = ({ content }) => {
                 borderColor: DESKCOMM_SAGE[500],
                 backgroundColor: `${DESKCOMM_SAGE[500]}14`,
                 boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}25`,
-                opacity: interpolate(frame, [105, 120], [0, 1], {
+                opacity: interpolate(frame, [112, 124], [0, 1], {
                   extrapolateLeft: 'clamp',
                   extrapolateRight: 'clamp',
                 }),
               }}
             />
 
-            {/* Cursor points to agent bubble with label placed cleanly to the left in open space */}
+            {/* Cursor inspection pointer (no click ripple, no cross-drag) */}
             <Cursor
               x={cursorX}
               y={cursorY}
-              clickFrame={125}
-              label={frame > 125 ? content.patientName : undefined}
+              opacity={cursorOpacity}
+              label={frame >= 120 ? content.patientName : undefined}
               labelPosition="left"
             />
           </div>

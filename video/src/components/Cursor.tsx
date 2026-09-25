@@ -6,8 +6,10 @@ interface CursorProps {
   x: number;
   y: number;
   clickFrame?: number;
+  isPressed?: boolean;
   label?: string;
   labelPosition?: 'right' | 'top' | 'bottom' | 'left';
+  opacity?: number;
   style?: React.CSSProperties;
 }
 
@@ -15,8 +17,10 @@ export const Cursor: React.FC<CursorProps> = ({
   x,
   y,
   clickFrame,
+  isPressed = false,
   label,
   labelPosition = 'right',
+  opacity,
   style = {},
 }) => {
   const frame = useCurrentFrame();
@@ -41,6 +45,8 @@ export const Cursor: React.FC<CursorProps> = ({
       })
     : 0;
 
+  const isPointerDown = isClicking || isPressed;
+
   return (
     <div
       className="pointer-events-none absolute z-50 transition-transform select-none"
@@ -48,6 +54,7 @@ export const Cursor: React.FC<CursorProps> = ({
         left: x,
         top: y,
         transform: `translate(-2px, -2px)`,
+        opacity,
         ...style,
       }}
     >
@@ -73,7 +80,8 @@ export const Cursor: React.FC<CursorProps> = ({
         xmlns="http://www.w3.org/2000/svg"
         className="drop-shadow-md"
         style={{
-          transform: isClicking ? 'scale(0.88)' : 'scale(1)',
+          transform: isPointerDown ? 'scale(0.88)' : 'scale(1)',
+          transformOrigin: '4px 3px',
           transition: 'transform 0.1s ease',
         }}
       >
