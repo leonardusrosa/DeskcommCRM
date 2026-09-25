@@ -6,7 +6,10 @@ interface CursorProps {
   x: number;
   y: number;
   clickFrame?: number;
+  isPressed?: boolean;
   label?: string;
+  labelPosition?: 'right' | 'top' | 'bottom' | 'left';
+  opacity?: number;
   style?: React.CSSProperties;
 }
 
@@ -14,7 +17,10 @@ export const Cursor: React.FC<CursorProps> = ({
   x,
   y,
   clickFrame,
+  isPressed = false,
   label,
+  labelPosition = 'right',
+  opacity,
   style = {},
 }) => {
   const frame = useCurrentFrame();
@@ -39,6 +45,8 @@ export const Cursor: React.FC<CursorProps> = ({
       })
     : 0;
 
+  const isPointerDown = isClicking || isPressed;
+
   return (
     <div
       className="pointer-events-none absolute z-50 transition-transform select-none"
@@ -46,6 +54,7 @@ export const Cursor: React.FC<CursorProps> = ({
         left: x,
         top: y,
         transform: `translate(-2px, -2px)`,
+        opacity,
         ...style,
       }}
     >
@@ -71,7 +80,8 @@ export const Cursor: React.FC<CursorProps> = ({
         xmlns="http://www.w3.org/2000/svg"
         className="drop-shadow-md"
         style={{
-          transform: isClicking ? 'scale(0.88)' : 'scale(1)',
+          transform: isPointerDown ? 'scale(0.88)' : 'scale(1)',
+          transformOrigin: '4px 3px',
           transition: 'transform 0.1s ease',
         }}
       >
@@ -87,7 +97,15 @@ export const Cursor: React.FC<CursorProps> = ({
       {/* Optional Pill Tag next to cursor */}
       {label && (
         <div
-          className="ml-5 -mt-3 inline-flex items-center rounded-full bg-slate-900/90 px-2.5 py-0.5 text-[11px] font-medium shadow-md backdrop-blur-sm"
+          className={`absolute whitespace-nowrap inline-flex items-center rounded-full bg-slate-900/90 px-2.5 py-0.5 text-[11px] font-medium shadow-md backdrop-blur-sm pointer-events-none select-none ${
+            labelPosition === 'top'
+              ? 'bottom-full mb-1.5 left-1'
+              : labelPosition === 'bottom'
+                ? 'top-full mt-1.5 left-1'
+                : labelPosition === 'left'
+                  ? 'right-full mr-2.5 top-0'
+                  : 'left-full ml-2.5 top-0'
+          }`}
           style={{ color: DESKCOMM_SAGE[300] }}
         >
           {label}

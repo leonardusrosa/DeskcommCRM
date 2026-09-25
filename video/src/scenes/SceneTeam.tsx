@@ -11,6 +11,7 @@ import { BrowserFrame } from '../components/BrowserFrame';
 import { Cursor } from '../components/Cursor';
 import { FloatingCard } from '../components/FloatingCard';
 import { OverlayBadge } from '../components/OverlayBadge';
+import { TEAM_VIEWPORT_GEOMETRY } from '../geometry';
 import { DESKCOMM_SAGE } from '../theme';
 import { VideoContent } from '../types';
 
@@ -21,6 +22,8 @@ interface SceneTeamProps {
 export const SceneTeam: React.FC<SceneTeamProps> = ({ content }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+
+  const roleRow = TEAM_VIEWPORT_GEOMETRY.lauraRoleRow;
 
   // Entrance spring
   const entrance = spring({
@@ -40,17 +43,19 @@ export const SceneTeam: React.FC<SceneTeamProps> = ({ content }) => {
   const cameraX = interpolate(zoomProgress, [0, 1], [0, -90]);
   const cameraY = interpolate(zoomProgress, [0, 1], [0, -35]);
 
-  // Cursor movement across members
+  // Cursor movement to Dra. Laura Martínez and her admin role:
+  // 0-40: rest
+  // 40-90: moves smoothly to the admin role pill
   const cursorX = interpolate(
     frame,
-    [0, 50, 90, 150, 200],
-    [500, 340, 340, 430, 430],
+    [0, 40, 90, 150],
+    [550, 550, roleRow.left + roleRow.width - 55, roleRow.left + roleRow.width - 55],
     { extrapolateRight: 'clamp' }
   );
   const cursorY = interpolate(
     frame,
-    [0, 50, 90, 150, 200],
-    [600, 275, 275, 335, 335],
+    [0, 40, 90, 150],
+    [480, 480, roleRow.top + 22, roleRow.top + 22],
     { extrapolateRight: 'clamp' }
   );
 
@@ -92,12 +97,16 @@ export const SceneTeam: React.FC<SceneTeamProps> = ({ content }) => {
               className="h-full w-full object-cover object-left-top"
             />
 
-            {/* Member Table Spotlight (Dra. Laura & Carolina) */}
+            {/* Member Table Spotlight (Tight single row on Dra. Laura Martínez & Admin role) */}
             <div
-              className="pointer-events-none absolute left-[140px] top-[265px] h-[140px] w-[950px] rounded-xl border-2 shadow-lg ring-4"
+              className="pointer-events-none absolute rounded-xl border-2 shadow-lg ring-4"
               style={{
+                left: roleRow.left,
+                top: roleRow.top,
+                width: roleRow.width,
+                height: roleRow.height,
                 borderColor: `${DESKCOMM_SAGE[500]}cc`,
-                backgroundColor: `${DESKCOMM_SAGE[500]}1a`,
+                backgroundColor: `${DESKCOMM_SAGE[500]}15`,
                 boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}20`,
                 opacity: interpolate(frame, [40, 70], [0, 1], {
                   extrapolateLeft: 'clamp',
@@ -106,17 +115,18 @@ export const SceneTeam: React.FC<SceneTeamProps> = ({ content }) => {
               }}
             />
 
-            {/* Cursor */}
+            {/* Cursor pointing to role pill with label positioned to the right in empty column space */}
             <Cursor
               x={cursorX}
               y={cursorY}
               clickFrame={90}
               label={frame > 95 ? content.accountabilityTag : undefined}
+              labelPosition="right"
             />
           </div>
         </BrowserFrame>
 
-        {/* Floating Callout 1: Active Specialists */}
+        {/* Single dominant floating card: Active Specialists */}
         <FloatingCard
           delay={60}
           icon={
@@ -140,30 +150,6 @@ export const SceneTeam: React.FC<SceneTeamProps> = ({ content }) => {
           subtitle={content.coordinationSubtitle}
           badge={content.coordinationBadge}
           className="bottom-12 left-16"
-        />
-
-        {/* Floating Callout 2: Roles and Permissions */}
-        <FloatingCard
-          delay={140}
-          icon={
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-          }
-          title={content.accessControlTitle}
-          subtitle={content.accessControlSubtitle}
-          badge={content.accessControlBadge}
-          className="bottom-12 right-16"
         />
       </div>
     </div>

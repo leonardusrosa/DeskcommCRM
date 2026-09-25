@@ -11,6 +11,7 @@ import { BrowserFrame } from '../components/BrowserFrame';
 import { Cursor } from '../components/Cursor';
 import { FloatingCard } from '../components/FloatingCard';
 import { OverlayBadge } from '../components/OverlayBadge';
+import { INBOX_VIEWPORT_GEOMETRY } from '../geometry';
 import { DESKCOMM_SAGE } from '../theme';
 import { VideoContent } from '../types';
 
@@ -36,22 +37,37 @@ export const SceneInbox: React.FC<SceneInboxProps> = ({ content }) => {
     config: { damping: 18, stiffness: 75 },
   });
 
-  const cameraScale = interpolate(zoomProgress, [0, 1], [1, 1.25]);
-  const cameraX = interpolate(zoomProgress, [0, 1], [0, -90]);
-  const cameraY = interpolate(zoomProgress, [0, 1], [0, -35]);
+  const cameraScale = interpolate(zoomProgress, [0, 1], [1, 1.22]);
+  const cameraX = interpolate(zoomProgress, [0, 1], [0, -70]);
+  const cameraY = interpolate(zoomProgress, [0, 1], [0, -25]);
 
-  // Cursor movement: from center to conversation list, then to message thread
-  const cursorX = interpolate(
+  const target1X = INBOX_VIEWPORT_GEOMETRY.incomingMessage.left + 50;
+  const target1Y = INBOX_VIEWPORT_GEOMETRY.incomingMessage.top + 28;
+  const target2X = INBOX_VIEWPORT_GEOMETRY.agentReply.left + 50;
+  const target2Y = INBOX_VIEWPORT_GEOMETRY.agentReply.top + 35;
+
+  // Phase 1 (frames 0-100): approaches and rests on incoming customer message
+  // Phase 2 (frames 112+): positioned at agent reply bubble (no cross-drag)
+  const cursorX =
+    frame < 112
+      ? interpolate(frame, [0, 45, 75], [580, 580, target1X], {
+          extrapolateRight: 'clamp',
+        })
+      : target2X;
+
+  const cursorY =
+    frame < 112
+      ? interpolate(frame, [0, 45, 75], [480, 480, target1Y], {
+          extrapolateRight: 'clamp',
+        })
+      : target2Y;
+
+  // Cursor opacity: fades out at incoming message (100-112), reappears at reply (120-132)
+  const cursorOpacity = interpolate(
     frame,
-    [0, 50, 80, 130, 200],
-    [650, 310, 310, 680, 680],
-    { extrapolateRight: 'clamp' }
-  );
-  const cursorY = interpolate(
-    frame,
-    [0, 50, 80, 130, 200],
-    [600, 215, 215, 340, 340],
-    { extrapolateRight: 'clamp' }
+    [0, 40, 45, 100, 112, 120, 132],
+    [0, 0, 1, 1, 0, 0, 1],
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
   );
 
   return (
@@ -92,47 +108,67 @@ export const SceneInbox: React.FC<SceneInboxProps> = ({ content }) => {
               className="h-full w-full object-cover object-left-top"
             />
 
-            {/* Conversation Highlight Box on left list */}
+            {/* Right sidebar subtle demotion mask during message focus */}
             <div
-              className="pointer-events-none absolute left-[180px] top-[185px] h-[64px] w-[215px] rounded-lg border-2 shadow-md ring-4"
+              className="pointer-events-none absolute right-0 top-0 bottom-0 w-[270px] bg-slate-900/10 backdrop-blur-[0.5px]"
               style={{
+                opacity: interpolate(frame, [45, 75], [0, 0.45], {
+                  extrapolateLeft: 'clamp',
+                  extrapolateRight: 'clamp',
+                }),
+              }}
+            />
+
+            {/* Stage 1: Tight highlight around incoming customer message (frames 45-112) */}
+            <div
+              className="pointer-events-none absolute rounded-2xl border-2 shadow-md ring-4"
+              style={{
+                left: INBOX_VIEWPORT_GEOMETRY.incomingMessage.left,
+                top: INBOX_VIEWPORT_GEOMETRY.incomingMessage.top,
+                width: INBOX_VIEWPORT_GEOMETRY.incomingMessage.width,
+                height: INBOX_VIEWPORT_GEOMETRY.incomingMessage.height,
+                borderColor: `${DESKCOMM_SAGE[400]}cc`,
+                backgroundColor: `${DESKCOMM_SAGE[200]}18`,
+                boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[400]}20`,
+                opacity: interpolate(frame, [45, 60, 100, 112], [0, 1, 1, 0], {
+                  extrapolateLeft: 'clamp',
+                  extrapolateRight: 'clamp',
+                }),
+              }}
+            />
+
+            {/* Stage 2: Tight highlight hugging green agent reply bubble (frames 112-390) */}
+            <div
+              className="pointer-events-none absolute rounded-2xl border-2 shadow-xl ring-4"
+              style={{
+                left: INBOX_VIEWPORT_GEOMETRY.agentReply.left,
+                top: INBOX_VIEWPORT_GEOMETRY.agentReply.top,
+                width: INBOX_VIEWPORT_GEOMETRY.agentReply.width,
+                height: INBOX_VIEWPORT_GEOMETRY.agentReply.height,
                 borderColor: DESKCOMM_SAGE[500],
-                backgroundColor: `${DESKCOMM_SAGE[500]}15`,
-                boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}20`,
-                opacity: interpolate(frame, [40, 70], [0, 1], {
+                backgroundColor: `${DESKCOMM_SAGE[500]}14`,
+                boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}25`,
+                opacity: interpolate(frame, [112, 124], [0, 1], {
                   extrapolateLeft: 'clamp',
                   extrapolateRight: 'clamp',
                 }),
               }}
             />
 
-            {/* Crisp highlight around message thread */}
-            <div
-              className="pointer-events-none absolute left-[390px] top-[190px] h-[260px] w-[620px] rounded-2xl border-2 shadow-xl ring-4"
-              style={{
-                borderColor: `${DESKCOMM_SAGE[500]}cc`,
-                backgroundColor: `${DESKCOMM_SAGE[500]}0d`,
-                boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}20`,
-                opacity: interpolate(frame, [90, 120], [0, 1], {
-                  extrapolateLeft: 'clamp',
-                  extrapolateRight: 'clamp',
-                }),
-              }}
-            />
-
-            {/* Simulated Animated Cursor */}
+            {/* Cursor inspection pointer (no click ripple, no cross-drag) */}
             <Cursor
               x={cursorX}
               y={cursorY}
-              clickFrame={80}
-              label={frame > 85 ? content.patientName : undefined}
+              opacity={cursorOpacity}
+              label={frame >= 120 ? content.patientName : undefined}
+              labelPosition="left"
             />
           </div>
         </BrowserFrame>
 
-        {/* Floating Callout 1: Patient Incoming Context */}
+        {/* Single dominant floating card: Patient Incoming WhatsApp Context */}
         <FloatingCard
-          delay={60}
+          delay={70}
           icon={
             <svg
               width="22"
@@ -151,31 +187,6 @@ export const SceneInbox: React.FC<SceneInboxProps> = ({ content }) => {
           subtitle={content.callout}
           badge={content.channelBadge}
           className="bottom-12 left-16"
-        />
-
-        {/* Floating Callout 2: Treatment & Doctor Assignment */}
-        <FloatingCard
-          delay={140}
-          icon={
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <polyline points="16 11 18 13 22 9" />
-            </svg>
-          }
-          title={content.treatmentTag}
-          subtitle={content.specialistLabel}
-          badge={content.handoffBadge}
-          className="bottom-12 right-16"
         />
       </div>
     </div>

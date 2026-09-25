@@ -11,6 +11,7 @@ import { BrowserFrame } from '../components/BrowserFrame';
 import { Cursor } from '../components/Cursor';
 import { FloatingCard } from '../components/FloatingCard';
 import { OverlayBadge } from '../components/OverlayBadge';
+import { AGENDA_VIEWPORT_GEOMETRY } from '../geometry';
 import { DESKCOMM_SAGE } from '../theme';
 import { VideoContent } from '../types';
 
@@ -22,6 +23,8 @@ export const SceneAgenda: React.FC<SceneAgendaProps> = ({ content }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
+  const appointment = AGENDA_VIEWPORT_GEOMETRY.thursdayAppointment;
+
   // Entrance spring
   const entrance = spring({
     frame,
@@ -29,7 +32,7 @@ export const SceneAgenda: React.FC<SceneAgendaProps> = ({ content }) => {
     config: { damping: 14, stiffness: 120 },
   });
 
-  // Camera zoom into appointment grid
+  // Camera zoom into appointment slot on Thursday 11:00 AM
   const zoomProgress = spring({
     frame: Math.max(0, frame - 40),
     fps,
@@ -37,20 +40,22 @@ export const SceneAgenda: React.FC<SceneAgendaProps> = ({ content }) => {
   });
 
   const cameraScale = interpolate(zoomProgress, [0, 1], [1, 1.25]);
-  const cameraX = interpolate(zoomProgress, [0, 1], [0, -110]);
+  const cameraX = interpolate(zoomProgress, [0, 1], [0, -130]);
   const cameraY = interpolate(zoomProgress, [0, 1], [0, -60]);
 
-  // Cursor pointing to confirmed appointment on calendar
+  // Cursor pointing to confirmed appointment on calendar:
+  // 0-40: rest
+  // 40-90: moves smoothly to Thursday 11:00 AM slot
   const cursorX = interpolate(
     frame,
-    [0, 50, 90, 150, 210],
-    [500, 780, 780, 960, 960],
+    [0, 40, 90, 150],
+    [650, 650, appointment.left + 25, appointment.left + 25],
     { extrapolateRight: 'clamp' }
   );
   const cursorY = interpolate(
     frame,
-    [0, 50, 90, 150, 210],
-    [600, 410, 410, 535, 535],
+    [0, 40, 90, 150],
+    [550, 550, appointment.top + 10, appointment.top + 10],
     { extrapolateRight: 'clamp' }
   );
 
@@ -92,45 +97,36 @@ export const SceneAgenda: React.FC<SceneAgendaProps> = ({ content }) => {
               className="h-full w-full object-cover object-left-top"
             />
 
-            {/* List Row Spotlight */}
+            {/* Precise appointment card spotlight on Thursday 11:00 AM */}
             <div
-              className="pointer-events-none absolute left-[138px] top-[390px] h-[48px] w-[980px] rounded-xl border-2 shadow-lg ring-4"
+              className="pointer-events-none absolute rounded-lg border-2 shadow-md ring-4"
               style={{
-                borderColor: `${DESKCOMM_SAGE[500]}cc`,
-                backgroundColor: `${DESKCOMM_SAGE[500]}1a`,
-                boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}20`,
-                opacity: interpolate(frame, [40, 70], [0, 1], {
-                  extrapolateLeft: 'clamp',
-                  extrapolateRight: 'clamp',
-                }),
-              }}
-            />
-
-            {/* Calendar Block Spotlight on Thursday 11h */}
-            <div
-              className="pointer-events-none absolute left-[900px] top-[515px] h-[42px] w-[185px] rounded-lg border-2 shadow-md ring-4"
-              style={{
+                left: appointment.left,
+                top: appointment.top,
+                width: appointment.width,
+                height: appointment.height,
                 borderColor: DESKCOMM_SAGE[600],
-                backgroundColor: `${DESKCOMM_SAGE[600]}33`,
-                boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}33`,
-                opacity: interpolate(frame, [80, 110], [0, 1], {
+                backgroundColor: `${DESKCOMM_SAGE[600]}25`,
+                boxShadow: `0 0 0 4px ${DESKCOMM_SAGE[500]}30`,
+                opacity: interpolate(frame, [60, 90], [0, 1], {
                   extrapolateLeft: 'clamp',
                   extrapolateRight: 'clamp',
                 }),
               }}
             />
 
-            {/* Cursor */}
+            {/* Cursor pointing to appointment with label positioned on top */}
             <Cursor
               x={cursorX}
               y={cursorY}
               clickFrame={90}
               label={frame > 95 ? content.statusConfirmed : undefined}
+              labelPosition="top"
             />
           </div>
         </BrowserFrame>
 
-        {/* Floating Callout 1: Appointment Info */}
+        {/* Single dominant floating card: Appointment Details */}
         <FloatingCard
           delay={60}
           icon={
@@ -154,30 +150,6 @@ export const SceneAgenda: React.FC<SceneAgendaProps> = ({ content }) => {
           subtitle={content.specialistText}
           badge={content.statusConfirmed}
           className="bottom-12 left-16"
-        />
-
-        {/* Floating Callout 2: Notification Follow-up */}
-        <FloatingCard
-          delay={150}
-          icon={
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </svg>
-          }
-          title={content.notificationTitle}
-          subtitle={content.notificationSubtitle}
-          badge={content.notificationBadge}
-          className="bottom-12 right-16"
         />
       </div>
     </div>
